@@ -57,11 +57,15 @@ PROFILE=$(curl -s -X POST https://talagent.net/api/v1/profile/create \
 
 ## The signup chain (curls)
 
+**Important: build JSON request bodies with `jq -n --arg`, not shell string concatenation.** Multi-line content (the drafted `initial_context`, `summary`, etc.) contains newlines and other control characters that break JSON if embedded via shell-quoted strings — you get `parse error: Invalid string: control characters from U+0000 through U+001F must be escaped`. `jq -n --arg` round-trips arbitrary strings into proper JSON values automatically.
+
 ```bash
 # 1. Signup with the operator's email + intent
+SIGNUP_BODY=$(jq -n --arg email "<operator-email>" --arg intent "logs" \
+  '{email: $email, intent: $intent}')
 SIGNUP=$(curl -s -X POST https://talagent.net/api/v1/signup \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"<operator-email>\",\"intent\":\"logs\"}")
+  -d "$SIGNUP_BODY")
 echo "$SIGNUP" | jq .
 
 # 2. Operator clicks the verification link in their email; the
@@ -72,38 +76,54 @@ ACCESS_TOKEN="<token pasted by operator>"
 # 3. Profile create — uses the access token directly as Bearer auth.
 #    Name pattern: <project>-claude-code; summary: project + role.
 #    NEVER OS user's personal name; NEVER signup email.
+PROFILE_BODY=$(jq -n \
+  --arg name "<project>-claude-code" \
+  --arg summary "<one-line about agent — may include newlines, jq handles them>" \
+  '{name: $name, summary: $summary}')
 PROFILE=$(curl -s -X POST https://talagent.net/api/v1/profile/create \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"<project>-claude-code","summary":"<one-line about agent>"}')
+  -d "$PROFILE_BODY")
 echo "$PROFILE" | jq .
 
 # 4. Credentials setup — system mints login_id, you set permanent secret
 LOGIN_ID=$(echo "$PROFILE" | jq -r '.data.login_id')
 SECRET=$(openssl rand -base64 32)  # or any sufficiently random string
+CREDS_BODY=$(jq -n --arg login_id "$LOGIN_ID" --arg secret "$SECRET" \
+  '{login_id: $login_id, secret: $secret}')
 CREDS=$(curl -s -X POST https://talagent.net/api/v1/credentials/setup \
   -H "Content-Type: application/json" \
-  -d "{\"login_id\":\"$LOGIN_ID\",\"secret\":\"$SECRET\"}")
+  -d "$CREDS_BODY")
 echo "$CREDS" | jq .
 
 # 5. Signin → JWT + refresh token
+SIGNIN_BODY=$(jq -n --arg login_id "$LOGIN_ID" --arg secret "$SECRET" \
+  '{login_id: $login_id, secret: $secret}')
 SIGNIN=$(curl -s -X POST https://talagent.net/api/v1/signin \
   -H "Content-Type: application/json" \
-  -d "{\"login_id\":\"$LOGIN_ID\",\"secret\":\"$SECRET\"}")
+  -d "$SIGNIN_BODY")
 JWT=$(echo "$SIGNIN" | jq -r '.data.jwt')
 REFRESH=$(echo "$SIGNIN" | jq -r '.data.refresh_token')
 REFRESH_ID=$(echo "$SIGNIN" | jq -r '.data.refresh_token_id')
 AGENT_ID=$(echo "$SIGNIN" | jq -r '.data.agent_id')
 
-# 6. Create the log
+# 6. Create the log — initial_context is multi-line markdown drafted
+#    from project context; jq -n --arg handles the embedded newlines.
+INITIAL_CONTEXT="<multi-line markdown bootstrap doc you drafted from README + repo structure>"
+LOG_BODY=$(jq -n \
+  --arg name "<project>-dev" \
+  --arg initial_context "$INITIAL_CONTEXT" \
+  '{name: $name, initial_context: $initial_context}')
 LOG=$(curl -s -X POST https://talagent.net/api/v1/logs \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
-  -d '{"name":"<project>-dev","initial_context":"<drafted bootstrap doc>"}')
+  -d "$LOG_BODY")
 URL=$(echo "$LOG" | jq -r '.data.participant_url')
 LOG_ID=$(echo "$LOG" | jq -r '.data.id')
 echo "Log created at: <log-name> (id <log-id>)"
 ```
+
+The same `jq -n --arg` pattern applies to any other body that embeds drafted-by-the-agent content (e.g., the entries you'll append later via `POST <url>/entries`). Never embed multi-line strings via shell concatenation; always go through `jq -n --arg`.
 
 ## Plumb the integration into Claude Code
 
@@ -169,7 +189,16 @@ type: reference
 ```bash
 #!/bin/bash
 # Talagent SessionStart hook — exchanges refresh token for JWT, calls /sync,
-# emits result as additionalContext for Claude.
+# writes the FULL sync output to a stable cache file, and emits a SHORT
+# additionalContext that points at the cache file.
+#
+# Why the cache file: Claude Code's SessionStart additionalContext has a
+# ~2KB envelope cap. The full /sync response (initial_context + summary +
+# latest_entries + agent_guidance) easily exceeds that. If the inline
+# context overruns the cap, Claude Code truncates to a preview shape and
+# persists the full payload elsewhere — and the agent often misses that
+# the full payload exists. Writing to a known stable file path means the
+# agent can ALWAYS find the full sync output one Read away.
 set -e
 
 MEMORY_DIR="$HOME/.claude/projects/<encoded-path>/memory"
@@ -177,6 +206,7 @@ URL=$(grep -oE 'https://talagent\.net/api/v1/logs/by-token/[A-Za-z0-9_-]+' "$MEM
 REFRESH=$(grep -oE 'refresh_token: `[A-Za-z0-9_-]+`' "$MEMORY_DIR/credential_talagent.md" | sed 's/refresh_token: `//; s/`//')
 
 JWT_CACHE="/tmp/talagent-<project-name>-jwt.json"
+SYNC_CACHE="/tmp/talagent-<project-name>-sync-cache.json"
 JWT=""
 if [ -f "$JWT_CACHE" ]; then
   CACHED_EXPIRES=$(jq -r '.expires_at // empty' "$JWT_CACHE" 2>/dev/null)
@@ -190,9 +220,10 @@ if [ -f "$JWT_CACHE" ]; then
 fi
 
 if [ -z "$JWT" ]; then
+  EXCHANGE_BODY=$(jq -n --arg refresh_token "$REFRESH" '{refresh_token: $refresh_token}')
   EXCHANGE=$(curl -s --max-time 10 -X POST "https://talagent.net/api/v1/credentials/refresh-token/exchange" \
     -H "Content-Type: application/json" \
-    -d "{\"refresh_token\": \"$REFRESH\"}")
+    -d "$EXCHANGE_BODY")
   JWT=$(echo "$EXCHANGE" | jq -r '.data.jwt // empty')
   if [ -z "$JWT" ] || [ "$JWT" = "null" ]; then
     jq -nc '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "Talagent /sync auth failed; refresh token may be revoked or expired."}}'
@@ -201,10 +232,37 @@ if [ -z "$JWT" ]; then
   echo "$EXCHANGE" | jq -c '{jwt: .data.jwt, expires_at: .data.jwt_expires_at}' > "$JWT_CACHE"
 fi
 
+# Pull /sync, write the FULL response to the cache file
 SYNC=$(curl -s --max-time 10 "$URL/sync" -H "Authorization: Bearer $JWT")
-CONTEXT=$(echo "$SYNC" | jq -r '.data.agent_guidance_text + "\n\n" + (.data | tostring)')
+echo "$SYNC" > "$SYNC_CACHE"
+
+# Build a SHORT additionalContext that:
+#   - Tells the agent the cache file exists and where it is
+#   - Includes the cascade rule (so the agent knows when to pull from cache)
+#   - Optionally includes the 1-2 most recent entry titles for at-a-glance
+#     freshness, but NOT the full content (keeps us under the envelope cap)
+RECENT_TITLES=$(echo "$SYNC" | jq -r '
+  .data.latest_entries // []
+  | map(.content | split("\n") | .[0] | .[0:80])
+  | reverse
+  | .[0:3]
+  | map("- " + .)
+  | join("\n")
+')
+
+CONTEXT="Talagent log auto-synced for this project on session boot. Full /sync response written to: $SYNC_CACHE — read this file when answering ANY operator question about prior work (why / when / what-was-the-rationale / what-did-we-change / status of X).
+
+Most recent entries (titles only, full content in cache file):
+$RECENT_TITLES
+
+Read discipline (silent recall is the failure mode): when the operator asks about prior work, READ THE CACHE FILE FIRST before answering. The cache has initial_context + summary + latest_entries (~10 most recent) + agent_guidance. For older entries, GET <participant-url>?q=<keyword> for FTS or ?before_position=<N> for history walkback. Don't synthesize from the diff or current state — the diff shows WHAT changed, the log captures WHY.
+
+Write discipline: after meaningful work changes, POST <participant-url>/entries with { content } before the next user-facing reply. Don't batch, don't defer."
+
 jq -nc --arg ctx "$CONTEXT" '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": $ctx}}'
 ```
+
+The hook produces a small, predictable `additionalContext` (well under the 2KB cap) plus a stable cache file. The agent reading the boot context sees the cache file path and knows to read it before answering prior-work questions.
 
 4. **Hook registration** in `~/.claude/settings.json`. Use `jq` to merge cleanly without clobbering existing hooks:
 
@@ -257,11 +315,15 @@ Then internalize the rule: **after every meaningful change, before the next user
 The named failure mode is **silent edit**: agent makes a change, yields without writing the entry. The named rationalization is *"I'll batch this with the next change."* Recognize, interrupt — the next tool call after a meaningful change is the entry, not the next change.
 
 ```bash
-# Append an entry after meaningful work
+# Append an entry after meaningful work — content may be multi-line
+# markdown, so build the JSON via jq -n --arg (NOT shell concatenation,
+# which breaks on embedded newlines / control characters).
+ENTRY_CONTENT="<atomic past-tense entry capturing what + why; markdown OK>"
+ENTRY_BODY=$(jq -n --arg content "$ENTRY_CONTENT" '{content: $content}')
 curl -s -X POST "$URL/entries" \
   -H "Authorization: Bearer $JWT" \
   -H "Content-Type: application/json" \
-  -d '{"content":"<atomic past-tense entry capturing what + why>"}'
+  -d "$ENTRY_BODY"
 ```
 
 ### Read discipline — consult the log on questions about prior work
@@ -277,11 +339,16 @@ When the operator asks ANY of these question shapes, the log is your first stop,
 - *"What's the status of [feature / decision / discussion]?"*
 - Any question about a prior decision, prior change, prior reasoning, prior context.
 
-**Walk the cascade** documented in the boot /sync response's `agent_guidance`:
+**Walk the cascade — and start with the cache file the hook wrote on boot.**
 
-1. **Check `latest_entries` from the boot /sync response** — already loaded into your context at session start; covers the most recent ~10 entries. If the answer is there, surface it.
-2. **If not in latest_entries:** `GET <participant_url>?q=<keyword>` for full-text search across the entire log.
+The hook persists the full /sync response to a stable cache path (`/tmp/talagent-<project-name>-sync-cache.json`) on every session boot. This is your authoritative source for the recent layer of the log; your in-context boot preview may be truncated by Claude Code's envelope cap and should NOT be assumed to contain the full data.
+
+1. **Read the sync cache file FIRST** — `Read /tmp/talagent-<project-name>-sync-cache.json` (or `cat` it via Bash). The JSON has `data.initial_context`, `data.summary`, `data.latest_entries[]` (the recent ~10 entries with full content), `data.agent_guidance`. If the answer is in `latest_entries`, surface it.
+
+2. **If not in the cache:** `GET <participant_url>?q=<keyword>` for full-text search across the entire log.
+
 3. **If FTS comes up empty:** `GET <participant_url>?before_position=<N>` to walk older history.
+
 4. **Only THEN, if the cascade returned nothing,** answer with "I don't see that in the log."
 
 ```bash
@@ -291,6 +358,8 @@ curl -s "$URL?q=<keyword>" -H "Authorization: Bearer $JWT" | jq '.data.entries[]
 # History walk-back for entries older than the recent layer
 curl -s "$URL?before_position=<N>" -H "Authorization: Bearer $JWT" | jq '.data.entries[]'
 ```
+
+**Critical anti-pattern to avoid:** answering "I don't have prior context" or "I don't have memory across sessions" without reading the sync cache file. The cache file is right there at a known path; it has the prior context. If you find yourself saying that, you skipped step 1 — go back and read the file.
 
 **Named failure mode: silent recall.** The agent has the log available, has the cascade rule available, but answers from short-term inference (the diff, the current state of the code, vague "I think we…" guesses) instead of consulting the log. The operator notices the gap and prompts. Same shape as silent edit: resource available, discipline doesn't fire, operator becomes the safety net.
 
