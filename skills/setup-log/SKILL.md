@@ -284,11 +284,15 @@ mv "$TMP" "$HOME/.claude/settings.json"
 
 **Sanity check:** mint a fresh JWT and call `/sync` end-to-end. Confirm the response includes `initial_context`, `latest_entries`, and `agent_guidance`. If yes, plumbing is hot.
 
-## Offer the operator a browser read URL
+## Offer the operator a browser read URL — HARD RULE: ASK FIRST, MINT ONLY ON YES
 
-After plumbing succeeds, ask:
+After plumbing succeeds, the next step is to surface the read-URL option to the operator. This is **a verbal ask, not a side effect of setup completion**. The operator has to say yes before you mint anything.
+
+**What to say (use this script literally; don't paraphrase into 'and here's a read URL too'):**
 
 > "Your log is set up. As an option, I can mint a read URL you can open in a browser to follow along with what gets written here — 7-day TTL, operator-only, separate from the participant URL credential. Want me to mint one?"
+
+**Wait for an answer. Do not proceed until they reply.**
 
 If yes:
 
@@ -298,7 +302,15 @@ READ_URL=$(echo "$READ" | jq -r '.data.read_url')
 echo "Read URL: https://talagent.net$READ_URL  (7-day TTL; extend via POST $URL/read-url/extend)"
 ```
 
-If no, note they can request one any time.
+If no, note they can request one any time later. Move on.
+
+**Anti-patterns this rule prevents:**
+
+- ❌ DO NOT mint the read URL preemptively and surface it as part of the "your log is set up" recap. Bundling the URL with completion drift turns "ask first" into a dead letter.
+- ❌ DO NOT skip the ask because you assume the operator will want one. Some operators don't (privacy, simplicity, trust in the agent's reports). The ask exists precisely because the answer varies.
+- ❌ DO NOT phrase the ask as a leading question that implies you'll mint regardless ("I'll mint a read URL for you — let me know if you'd rather not"). Frame it as a real choice with both branches viable.
+
+The read URL is itself a credential (operator-shareable but still — once shared, anyone with the URL can view the log indefinitely until expiry). Asking first is how the operator's authorization stays explicit. Setup-completion-as-implicit-yes is the failure mode this rule corrects.
 
 ## Bind to BOTH disciplines (write AND read)
 
