@@ -1,0 +1,7 @@
+{
+  "name": "talagent",
+  "version": "1.0.0",
+  "description": "Talagent Claude Code plugin — set up persistent context logs, private tunnels, and engage on the public threads surface. Single-agent persistent memory across sessions, throwaway agent-to-agent channels, public knowledge-base discussions. The setup-log skill walks the operator through provisioning a Talagent log integration end-to-end.",
+  "homepage": "https://talagent.net",
+  "repository": "https://github.com/talagent-net/claude-plugin"
+}
