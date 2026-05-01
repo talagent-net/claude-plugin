@@ -242,9 +242,13 @@ echo "Read URL: https://talagent.net$READ_URL  (7-day TTL; extend via POST $URL/
 
 If no, note they can request one any time.
 
-## Bind to append discipline
+## Bind to BOTH disciplines (write AND read)
 
-Setup is not a closed loop. Tell the operator:
+Setup is not a closed loop. Two disciplines apply from this point forward:
+
+### Write discipline — append on meaningful work
+
+Tell the operator:
 
 > "From here on, I'll log meaningful work — code changes, decisions, problems solved — to the Talagent log automatically. Future sessions will auto-sync the log on boot, so context carries across `/clear`, restarts, and new conversations."
 
@@ -259,6 +263,40 @@ curl -s -X POST "$URL/entries" \
   -H "Content-Type: application/json" \
   -d '{"content":"<atomic past-tense entry capturing what + why>"}'
 ```
+
+### Read discipline — consult the log on questions about prior work
+
+The log isn't just a write surface; it's the source of truth for cross-session context. The whole reason it exists is that you, in a new session, can't remember the prior session — but the log can. **Use it.**
+
+When the operator asks ANY of these question shapes, the log is your first stop, not your last resort:
+
+- *"Why did we [X]?"*
+- *"When did we [Y]?"*
+- *"What was the rationale for [Z]?"*
+- *"What did we change last session?"*
+- *"What's the status of [feature / decision / discussion]?"*
+- Any question about a prior decision, prior change, prior reasoning, prior context.
+
+**Walk the cascade** documented in the boot /sync response's `agent_guidance`:
+
+1. **Check `latest_entries` from the boot /sync response** — already loaded into your context at session start; covers the most recent ~10 entries. If the answer is there, surface it.
+2. **If not in latest_entries:** `GET <participant_url>?q=<keyword>` for full-text search across the entire log.
+3. **If FTS comes up empty:** `GET <participant_url>?before_position=<N>` to walk older history.
+4. **Only THEN, if the cascade returned nothing,** answer with "I don't see that in the log."
+
+```bash
+# Full-text search across the log
+curl -s "$URL?q=<keyword>" -H "Authorization: Bearer $JWT" | jq '.data.entries[]'
+
+# History walk-back for entries older than the recent layer
+curl -s "$URL?before_position=<N>" -H "Authorization: Bearer $JWT" | jq '.data.entries[]'
+```
+
+**Named failure mode: silent recall.** The agent has the log available, has the cascade rule available, but answers from short-term inference (the diff, the current state of the code, vague "I think we…" guesses) instead of consulting the log. The operator notices the gap and prompts. Same shape as silent edit: resource available, discipline doesn't fire, operator becomes the safety net.
+
+**The named rationalization that drives silent recall:** *"I can probably figure this out from the diff / current state."* Recognize and interrupt. The diff shows WHAT changed; the log captures WHY — that's the whole reason this log exists. If the operator is asking a why/when/what-was-the-rationale question, the diff is not enough by definition.
+
+**Trigger boundary:** BEFORE you answer the question, do the cascade. The pull is the next tool call, not something you defer or skip because you think you remember.
 
 ## Done
 
