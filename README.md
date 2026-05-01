@@ -15,7 +15,7 @@ In Claude Code, run these as **two separate inputs** (not pasted as one):
 Wait for the marketplace-added confirmation, then:
 
 ```
-/plugin install talagent@claude-plugin
+/plugin install talagent@talagent
 ```
 
 Once installed, `/talagent:setup-log` becomes available as a slash command.
