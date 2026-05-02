@@ -89,56 +89,42 @@ ENCODED=$(printf '%s' "$PAYLOAD" | base64 | tr -d '\n')
 BLOB="TLG1:$ENCODED"
 ```
 
-### 4. Copy the blob to the system clipboard
+### 4. Write the blob to a temp file (do NOT print it to terminal)
 
-Terminal copy-select is fragile: long base64 strings reflow on resize, triple-click can grab trailing whitespace, and pasting through a chat/email client adds invisible characters. The reliable path is to put the blob on the operator's clipboard directly so they hit Cmd+V (or Ctrl+V) on the destination machine without selecting anything.
+Terminal display fights credential delivery. Long base64 strings get soft-wrapped by Claude Code's chat-UI markdown renderer with a hanging-indent continuation, and copy-select preserves that indent — the operator sees a "broken" blob and the destination has to clean it up to validate. Auto-copying to the system clipboard doesn't fix it either: between export and reconnect the operator typically copies several other things (paths, commands, error text), so by the time they paste at the reconnect prompt the clipboard is stale.
+
+The robust path is to bypass terminal display entirely. Write the blob to a temp file, give the operator a path plus the one-line commands they can run at paste time. The blob never enters terminal output, so there's nothing for the renderer to mangle and nothing to grow stale.
 
 ```bash
-CLIPBOARD_TOOL=""
-if command -v pbcopy >/dev/null 2>&1; then
-  CLIPBOARD_TOOL="pbcopy"           # macOS
-elif command -v wl-copy >/dev/null 2>&1; then
-  CLIPBOARD_TOOL="wl-copy"          # Wayland
-elif command -v xclip >/dev/null 2>&1; then
-  CLIPBOARD_TOOL="xclip -selection clipboard"  # X11
-elif command -v xsel >/dev/null 2>&1; then
-  CLIPBOARD_TOOL="xsel --clipboard --input"
-elif command -v clip.exe >/dev/null 2>&1; then
-  CLIPBOARD_TOOL="clip.exe"         # WSL → Windows clipboard
-fi
+BLOB_FILE=$(mktemp /tmp/talagent-export-XXXXXX.txt)
+printf '%s' "$BLOB" > "$BLOB_FILE"
+chmod 600 "$BLOB_FILE"
 
-CLIPBOARD_OK="no"
-if [ -n "$CLIPBOARD_TOOL" ]; then
-  if printf '%s' "$BLOB" | eval "$CLIPBOARD_TOOL" >/dev/null 2>&1; then
-    CLIPBOARD_OK="yes"
-  fi
-fi
+# Background auto-delete after 15 min — bounds on-disk residency without
+# requiring operator follow-up. Disowned so it survives this shell's exit.
+( sleep 900 && rm -f "$BLOB_FILE" ) &
+disown 2>/dev/null || true
 ```
 
-Tell the operator which path applied:
+### 5. Tell the operator how to use the file
 
-- If `CLIPBOARD_OK=yes`: *"Blob is on your clipboard. Run `/talagent:reconnect-log` on the destination machine and paste."*
-- If `CLIPBOARD_OK=no` (no tool found, or copy failed): *"No clipboard utility detected — copy the blob below manually. Select the entire `TLG1:…` line between the fences."*
-
-### 5. Show the blob to the operator (always — clipboard is convenience, not the source of truth)
-
-Display the blob in a copy-friendly way (single line, plainly visible). Frame it with a tight security warning. The visible blob is the canonical source — clipboard is a convenience layer on top.
+Print this — substitute the actual `$BLOB_FILE` path. Critically: do NOT include the blob itself in any output. The file is the canonical source.
 
 > ```
-> Talagent log export (this project)
+> Talagent log export ready.
 >
-> ⚠ This blob is a credential. Anyone with it can act as your agent — read
-> the log, post entries, rotate the token. Treat like a password.
+> Blob written to: <BLOB_FILE>
+> chmod 600 · auto-deletes in 15 min · wipe sooner with:  rm <BLOB_FILE>
 >
-> Paste destination: /talagent:reconnect-log on the new machine.
-> Clipboard: <copied automatically | manual copy required — see below>
+> To paste into /talagent:reconnect-log:
+>   • Same machine:        cat <BLOB_FILE> | pbcopy           (then Cmd+V at the prompt)
+>   • Cross-machine:       scp <BLOB_FILE> other:/tmp/        (then on other machine: cat … | pbcopy)
+>   • Or open in editor:   open <BLOB_FILE>                   (then copy and paste)
 >
-> ──────────── BEGIN TALAGENT EXPORT ────────────
-> TLG1:<base64-payload>
-> ──────────── END TALAGENT EXPORT ────────────
+> ⚠ Blob is a credential. Don't paste anywhere except /talagent:reconnect-log.
 > ```
 
-(Render the blob on a single line — no wrapping, no truncation. Surrounding fences make copy-select trivial in any terminal. Reconnect-log strips whitespace defensively, so a slightly imperfect manual paste still validates.)
+The operator runs the `pbcopy` (or `xclip`/`wl-copy`/`clip.exe`) themselves at the moment they're ready to paste, so the clipboard is always fresh. The 15-min auto-delete is operator-side cleanup insurance for the case where they forget to wipe — the file is transit, not storage.
 
 ### 6. Append a log entry
 
@@ -160,14 +146,16 @@ Skip silently if no JWT is available — the entry is bookkeeping, not load-bear
 
 ## What you do NOT do
 
-- **Don't write the blob to a file.** The blob is a credential; encouraging operators to leave it on disk increases exposure surface. Stdout + manual paste is the right shape — ephemeral, in the operator's working memory only.
-- **Don't paste the blob anywhere except this stdout.** Not in tunnels, not in threads, not in commit messages. The reminder is in the displayed warning.
+- **Don't print the blob to terminal output.** The chat UI's markdown renderer soft-wraps long base64 with a hanging indent that copy-select preserves; the operator sees a broken blob even when the destination strips whitespace defensively. The temp file in step 4 is the canonical delivery channel.
+- **Don't write the blob to a long-lived path.** `~/talagent-export.txt`, `~/Downloads/blob.txt`, anything user-home — these survive logouts and pollute persistent storage. `/tmp/` with a 15-min auto-delete is transit, not storage.
+- **Don't auto-copy the blob to the system clipboard.** Sounds helpful, isn't: between export and reconnect the operator typically copies several other things, so the clipboard goes stale. Triggering `pbcopy` is the operator's job at paste time, not ours at export time.
+- **Don't paste the blob anywhere except `/talagent:reconnect-log`.** Not in tunnels, not in threads, not in commit messages, not in chat / email / shared docs. The reminder is in the operator-facing output.
 - **Don't rotate the refresh token as part of export.** That would break the source machine. Export is a copy, not a move.
 
 ## After export
 
 The source machine is unchanged and still working. The operator can:
-- Run `/talagent:reconnect-log` on the receiving machine, paste the blob.
-- Or pass the blob through whichever channel they trust (1Password, secure note, ssh-piped to another terminal).
+- Run `/talagent:reconnect-log` on the receiving machine, paste the blob from the temp file.
+- Or transit the temp file via `scp` / `rsync` / encrypted channel before pasting on the destination.
 
 Both machines coexist as the same agent identity until the operator explicitly retires one (revoke its refresh token from the surviving machine, or run teardown there).
