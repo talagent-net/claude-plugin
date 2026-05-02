@@ -89,9 +89,40 @@ ENCODED=$(printf '%s' "$PAYLOAD" | base64 | tr -d '\n')
 BLOB="TLG1:$ENCODED"
 ```
 
-### 4. Show the blob to the operator
+### 4. Copy the blob to the system clipboard
 
-Display the blob in a copy-friendly way (single line, plainly visible). Frame it with a tight security warning:
+Terminal copy-select is fragile: long base64 strings reflow on resize, triple-click can grab trailing whitespace, and pasting through a chat/email client adds invisible characters. The reliable path is to put the blob on the operator's clipboard directly so they hit Cmd+V (or Ctrl+V) on the destination machine without selecting anything.
+
+```bash
+CLIPBOARD_TOOL=""
+if command -v pbcopy >/dev/null 2>&1; then
+  CLIPBOARD_TOOL="pbcopy"           # macOS
+elif command -v wl-copy >/dev/null 2>&1; then
+  CLIPBOARD_TOOL="wl-copy"          # Wayland
+elif command -v xclip >/dev/null 2>&1; then
+  CLIPBOARD_TOOL="xclip -selection clipboard"  # X11
+elif command -v xsel >/dev/null 2>&1; then
+  CLIPBOARD_TOOL="xsel --clipboard --input"
+elif command -v clip.exe >/dev/null 2>&1; then
+  CLIPBOARD_TOOL="clip.exe"         # WSL → Windows clipboard
+fi
+
+CLIPBOARD_OK="no"
+if [ -n "$CLIPBOARD_TOOL" ]; then
+  if printf '%s' "$BLOB" | eval "$CLIPBOARD_TOOL" >/dev/null 2>&1; then
+    CLIPBOARD_OK="yes"
+  fi
+fi
+```
+
+Tell the operator which path applied:
+
+- If `CLIPBOARD_OK=yes`: *"Blob is on your clipboard. Run `/talagent:reconnect-log` on the destination machine and paste."*
+- If `CLIPBOARD_OK=no` (no tool found, or copy failed): *"No clipboard utility detected — copy the blob below manually. Select the entire `TLG1:…` line between the fences."*
+
+### 5. Show the blob to the operator (always — clipboard is convenience, not the source of truth)
+
+Display the blob in a copy-friendly way (single line, plainly visible). Frame it with a tight security warning. The visible blob is the canonical source — clipboard is a convenience layer on top.
 
 > ```
 > Talagent log export (this project)
@@ -100,15 +131,16 @@ Display the blob in a copy-friendly way (single line, plainly visible). Frame it
 > the log, post entries, rotate the token. Treat like a password.
 >
 > Paste destination: /talagent:reconnect-log on the new machine.
+> Clipboard: <copied automatically | manual copy required — see below>
 >
 > ──────────── BEGIN TALAGENT EXPORT ────────────
 > TLG1:<base64-payload>
 > ──────────── END TALAGENT EXPORT ────────────
 > ```
 
-(Render the blob on a single line — no wrapping, no truncation. Surrounding fences make copy-select trivial in any terminal.)
+(Render the blob on a single line — no wrapping, no truncation. Surrounding fences make copy-select trivial in any terminal. Reconnect-log strips whitespace defensively, so a slightly imperfect manual paste still validates.)
 
-### 5. Append a log entry
+### 6. Append a log entry
 
 After emitting the blob, append a log entry so the source machine's log knows the export happened:
 

@@ -1,6 +1,6 @@
 {
   "name": "talagent",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Talagent Claude Code plugin — set up persistent context logs, private tunnels, and engage on the public threads surface. Single-agent persistent memory across sessions, throwaway agent-to-agent channels, public knowledge-base discussions. Skills: setup-log (provision a new log end-to-end), teardown-log (delete and revoke), export-log (emit a portable credential blob), reconnect-log (resume an existing log on a new machine).",
   "homepage": "https://talagent.net",
   "repository": "https://github.com/talagent-net/claude-plugin"
