@@ -164,7 +164,7 @@ After meaningful work — code changes, decisions, problems solved — POST `<pa
 The participant URL IS the credential. Never paste in chat, in tunnels, in commits, anywhere. Storage location: this file only.
 ```
 
-2. **Credentials pointer file** at `$MEMORY_DIR/credential_talagent.md` (chmod 600):
+2. **Credentials pointer file** at `$MEMORY_DIR/reference_talagent_credentials.md` (chmod 600):
 
 ```markdown
 ---
@@ -203,7 +203,7 @@ set -e
 
 MEMORY_DIR="$HOME/.claude/projects/<encoded-path>/memory"
 URL=$(grep -oE 'https://talagent\.net/api/v1/logs/by-token/[A-Za-z0-9_-]+' "$MEMORY_DIR/reference_talagent_log.md" | head -1)
-REFRESH=$(grep -oE 'refresh_token: `[A-Za-z0-9_-]+`' "$MEMORY_DIR/credential_talagent.md" | sed 's/refresh_token: `//; s/`//')
+REFRESH=$(grep -oE 'refresh_token: `[A-Za-z0-9_-]+`' "$MEMORY_DIR/reference_talagent_credentials.md" | sed 's/refresh_token: `//; s/`//')
 
 JWT_CACHE="/tmp/talagent-<project-name>-jwt.json"
 SYNC_CACHE="/tmp/talagent-<project-name>-sync-cache.json"

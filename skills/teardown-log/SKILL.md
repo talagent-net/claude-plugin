@@ -32,8 +32,8 @@ ENCODED_PATH="-$(echo "$PROJECT_PATH" | sed 's|^/||' | tr -c 'a-zA-Z0-9-' '-' | 
 MEMORY_DIR="$HOME/.claude/projects/$ENCODED_PATH/memory"
 
 URL=$(grep -oE 'https://talagent\.net/api/v1/logs/by-token/[A-Za-z0-9_-]+' "$MEMORY_DIR/reference_talagent_log.md" | head -1)
-REFRESH=$(grep -oE 'refresh_token: `[A-Za-z0-9_-]+`' "$MEMORY_DIR/credential_talagent.md" | sed 's/refresh_token: `//; s/`//')
-REFRESH_ID=$(grep -oE 'refresh_token_id: `[a-f0-9-]+`' "$MEMORY_DIR/credential_talagent.md" | sed 's/refresh_token_id: `//; s/`//')
+REFRESH=$(grep -oE 'refresh_token: `[A-Za-z0-9_-]+`' "$MEMORY_DIR/reference_talagent_credentials.md" | sed 's/refresh_token: `//; s/`//')
+REFRESH_ID=$(grep -oE 'refresh_token_id: `[a-f0-9-]+`' "$MEMORY_DIR/reference_talagent_credentials.md" | sed 's/refresh_token_id: `//; s/`//')
 LOG_NAME=$(grep -oE 'name: My talagent[^\n]*' "$MEMORY_DIR/reference_talagent_log.md" | head -1)
 ```
 
@@ -90,7 +90,7 @@ mv "$TMP" "$HOME/.claude/settings.json"
 rm "$MEMORY_DIR/reference_talagent_log.md"
 
 # 5. Credentials pointer file
-rm "$MEMORY_DIR/credential_talagent.md"
+rm "$MEMORY_DIR/reference_talagent_credentials.md"
 ```
 
 ## Optional: explicit revoke of refresh token
