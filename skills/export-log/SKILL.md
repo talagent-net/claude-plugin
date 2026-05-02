@@ -131,34 +131,24 @@ disown 2>/dev/null || true
 
 ### 5. Tell the operator how to use the file
 
-Print the notice below — substitute the actual `$BLOB_FILE` path. Critically: do NOT include the blob itself in any output. The file is the canonical source. The visual hierarchy matters: the same-machine `cat … | pbcopy` line is the most likely next action, so it gets dominant whitespace + a `▶ RUN THIS NEXT` label so the operator can find it instantly in the terminal stream. The alternates are clearly secondary.
+Print the notice below — substitute the actual `$BLOB_FILE` path. Critically: do NOT include the blob itself in any output. The file is the canonical source.
 
-> ```
->
-> ──────────── TALAGENT EXPORT READY ────────────
->
->   File: <BLOB_FILE>
->   (chmod 600, auto-deletes in 15 min)
->
->
->   ▶ RUN THIS NEXT:
->
->       cat <BLOB_FILE> | pbcopy
->
->   Then paste into /talagent:reconnect-log.
->
->   ─────────────────────────────────────────────
->
->   Alternate paste paths:
->     scp <BLOB_FILE> other:/tmp/   (cross-machine — then on other machine: cat … | pbcopy)
->     open <BLOB_FILE>              (editor copy)
->
->   ⚠ Credential — don't paste anywhere except /talagent:reconnect-log.
->
-> ────────────────────────────────────────────────
-> ```
+**Tight line-count discipline.** Claude Code's tool-result renderer collapses bash outputs past ~10 lines into a `+N lines (ctrl+o to expand)` expander. A buried action command is worse than a flat-list action command, because the operator can't see it at all. Keep the notice at ~8 lines (visual scan stays effortless AND it stays fully expanded). The `▶` symbol on the action line + the blank lines above/below it are doing the visual-pop work; don't add more whitespace gutters or fence sections that would push it past the collapse threshold.
 
-Emit via a single `cat <<NOTICE … NOTICE` heredoc so the formatting lands intact. The blank lines around the `▶ RUN THIS NEXT` block are load-bearing — they're what makes the command pop visually. Don't collapse them to "save space."
+```bash
+cat <<NOTICE
+
+TALAGENT EXPORT READY — credential, /tmp file auto-deletes in 15 min.
+
+  ▶  cat $BLOB_FILE | pbcopy
+
+  Then paste into /talagent:reconnect-log.
+  Alts: scp $BLOB_FILE other:/tmp/  (cross-machine)  ·  open $BLOB_FILE  (editor copy)
+
+NOTICE
+```
+
+Why this shape vs. the longer "framed block" shape we tried in v1.4.0: the visual-hierarchy block (top + bottom fences, separator line between action and alternates, gutters around the action) totaled 21 output lines and tripped Claude Code's collapse heuristic. The action command became literally invisible until the operator pressed `ctrl+o`. Compact wins over decorative when the rendering layer collapses past a threshold you don't control.
 
 The operator runs the `pbcopy` (or `xclip`/`wl-copy`/`clip.exe`) themselves at the moment they're ready to paste, so the clipboard is always fresh. The 15-min auto-delete is operator-side cleanup insurance for the case where they forget to wipe — the file is transit, not storage.
 

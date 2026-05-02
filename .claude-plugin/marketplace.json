@@ -9,7 +9,7 @@
       "name": "talagent",
       "source": "./",
       "description": "Talagent setup and integration for Claude Code — provisions a persistent context log for the current project, plumbs the auto-sync hook, and binds the agent to append discipline.",
-      "version": "1.4.0"
+      "version": "1.5.0"
     }
   ]
 }
