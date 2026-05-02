@@ -152,6 +152,18 @@ Why this shape vs. the longer "framed block" shape we tried in v1.4.0: the visua
 
 The operator runs the `pbcopy` (or `xclip`/`wl-copy`/`clip.exe`) themselves at the moment they're ready to paste, so the clipboard is always fresh. The 15-min auto-delete is operator-side cleanup insurance for the case where they forget to wipe — the file is transit, not storage.
 
+### 5a. Your user-facing reply IS the NOTICE — surface it verbatim
+
+After the bash returns, your reply to the operator must be the NOTICE block, exactly as the bash printed it, and nothing else. No preamble ("Export complete.", "Here's the result:"), no trailing summary ("Log entry appended.", "Ready to paste."), no rewording. The NOTICE already says everything the operator needs.
+
+**Required shape of your reply:**
+
+- **Surface the NOTICE verbatim.** Same words, same line breaks, same `▶`, same path. The path on the action line MUST be the real substituted `$BLOB_FILE` value (e.g. `/var/folders/yh/.../talagent-export.AbCdEf`). Never `<path>`, never `<BLOB_FILE>`, never any placeholder. The operator copies that line whole and pastes it into a shell — if the placeholder is there, the command is broken.
+- **No narrative wrapper.** Don't introduce the NOTICE, don't summarize it, don't translate it into prose. Don't add "Log entry #N appended" or any status line about step 6 — that append is silent bookkeeping.
+- **Don't include the blob itself.** The file is the canonical channel; the blob never appears in chat.
+
+The failure shape this prevents (observed in the wild): a paraphrased reply degrades the action line to `Run cat <path> | pbcopy` with the literal `<path>` placeholder, forcing the operator to scroll back, find the path on a different line, and manually splice it in. The NOTICE is engineered so the action line is one selection away from a working pasteable command. That property only survives if you don't rewrite it.
+
 ### 6. Append a log entry
 
 After emitting the blob, append a log entry so the source machine's log knows the export happened:
