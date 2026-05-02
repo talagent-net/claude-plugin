@@ -48,27 +48,42 @@ PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 # `-Users-peter--wrk-foo` (note the double dash from the underscore).
 ENCODED_PATH="-$(echo "$PROJECT_ROOT" | sed 's|^/||' | tr -c 'a-zA-Z0-9-' '-' | sed 's|-$||')"
 MEMORY_DIR="$HOME/.claude/projects/$ENCODED_PATH/memory"
-URL_FILE="$MEMORY_DIR/reference_talagent_log.md"
-CREDS_FILE="$MEMORY_DIR/reference_talagent_credentials.md"
 
-if [ ! -f "$URL_FILE" ] || [ ! -f "$CREDS_FILE" ]; then
-  echo "ERROR: Talagent integration not found for this project."
-  echo "  Expected: $URL_FILE"
-  echo "  Expected: $CREDS_FILE"
+if [ ! -d "$MEMORY_DIR" ]; then
+  echo "ERROR: No auto-memory directory at $MEMORY_DIR."
   echo "Set up the integration first via /talagent:setup-log (plugin-managed projects)"
   echo "or scripts/setup-claude-context.sh (talagent monorepo)."
   exit 1
 fi
 ```
 
-### 2. Read the URL and refresh token
+### 2. Discover the URL + credentials pointer files (content-based, not name-based)
+
+Pointer-file naming varies by project:
+- Plugin-managed: `reference_talagent_log.md` + `reference_talagent_credentials.md`
+- Monorepo-style (talagent, delagent): `reference_<project>_dev_log.md` + `credential_<project>_dev_log.md`
+- Anything else an operator hand-wires
+
+So scan the memory dir for files containing the load-bearing patterns instead — a Talagent log URL and a `refresh_token: \`…\`` line. Take the first match of each.
 
 ```bash
+URL_FILE=$(grep -l -E 'https://talagent\.net/api/v1/logs/by-token/[A-Za-z0-9_-]+' "$MEMORY_DIR"/*.md 2>/dev/null | head -1)
+CREDS_FILE=$(grep -l -E 'refresh_token: `[A-Za-z0-9_-]+`' "$MEMORY_DIR"/*.md 2>/dev/null | head -1)
+
+if [ -z "$URL_FILE" ] || [ -z "$CREDS_FILE" ]; then
+  echo "ERROR: Talagent integration not found in $MEMORY_DIR."
+  echo "  Looked for any .md containing 'https://talagent.net/api/v1/logs/by-token/...' (URL): ${URL_FILE:-<none>}"
+  echo "  Looked for any .md containing 'refresh_token: \`...\`' (creds):                        ${CREDS_FILE:-<none>}"
+  echo "Set up the integration first via /talagent:setup-log (plugin-managed projects)"
+  echo "or scripts/setup-claude-context.sh (talagent monorepo)."
+  exit 1
+fi
+
 URL=$(grep -oE 'https://talagent\.net/api/v1/logs/by-token/[A-Za-z0-9_-]+' "$URL_FILE" | head -1)
 REFRESH=$(grep -oE 'refresh_token: `[A-Za-z0-9_-]+`' "$CREDS_FILE" | sed 's/refresh_token: `//; s/`//')
 
 if [ -z "$URL" ] || [ -z "$REFRESH" ]; then
-  echo "ERROR: Could not extract URL or refresh_token from pointer files."
+  echo "ERROR: Could not extract URL or refresh_token from discovered pointer files."
   echo "  URL_FILE: $URL_FILE (URL match: ${URL:-<empty>})"
   echo "  CREDS_FILE: $CREDS_FILE (refresh_token match: ${REFRESH:+<found>}${REFRESH:-<empty>})"
   exit 1
@@ -96,7 +111,15 @@ Terminal display fights credential delivery. Long base64 strings get soft-wrappe
 The robust path is to bypass terminal display entirely. Write the blob to a temp file, give the operator a path plus the one-line commands they can run at paste time. The blob never enters terminal output, so there's nothing for the renderer to mangle and nothing to grow stale.
 
 ```bash
-BLOB_FILE=$(mktemp /tmp/talagent-export-XXXXXX.txt)
+# Use `mktemp -t` instead of an explicit template with a `.txt` suffix:
+# BSD `mktemp` (macOS default) silently SKIPS XXXXXX substitution when the
+# template has a suffix after the X's, returning a literal predictable path.
+# Predictable filename defeats the symlink-attack avoidance that mktemp
+# exists for — a local attacker could pre-place a symlink at the predictable
+# path and the chmod 600 + write would clobber it. `-t <prefix>` is portable
+# (BSD: $TMPDIR/<prefix>.<random>; GNU: /tmp/<prefix>.<random>.<random>) and
+# always substitutes properly.
+BLOB_FILE=$(mktemp -t talagent-export)
 printf '%s' "$BLOB" > "$BLOB_FILE"
 chmod 600 "$BLOB_FILE"
 
@@ -108,21 +131,34 @@ disown 2>/dev/null || true
 
 ### 5. Tell the operator how to use the file
 
-Print this — substitute the actual `$BLOB_FILE` path. Critically: do NOT include the blob itself in any output. The file is the canonical source.
+Print the notice below — substitute the actual `$BLOB_FILE` path. Critically: do NOT include the blob itself in any output. The file is the canonical source. The visual hierarchy matters: the same-machine `cat … | pbcopy` line is the most likely next action, so it gets dominant whitespace + a `▶ RUN THIS NEXT` label so the operator can find it instantly in the terminal stream. The alternates are clearly secondary.
 
 > ```
-> Talagent log export ready.
 >
-> Blob written to: <BLOB_FILE>
-> chmod 600 · auto-deletes in 15 min · wipe sooner with:  rm <BLOB_FILE>
+> ──────────── TALAGENT EXPORT READY ────────────
 >
-> To paste into /talagent:reconnect-log:
->   • Same machine:        cat <BLOB_FILE> | pbcopy           (then Cmd+V at the prompt)
->   • Cross-machine:       scp <BLOB_FILE> other:/tmp/        (then on other machine: cat … | pbcopy)
->   • Or open in editor:   open <BLOB_FILE>                   (then copy and paste)
+>   File: <BLOB_FILE>
+>   (chmod 600, auto-deletes in 15 min)
 >
-> ⚠ Blob is a credential. Don't paste anywhere except /talagent:reconnect-log.
+>
+>   ▶ RUN THIS NEXT:
+>
+>       cat <BLOB_FILE> | pbcopy
+>
+>   Then paste into /talagent:reconnect-log.
+>
+>   ─────────────────────────────────────────────
+>
+>   Alternate paste paths:
+>     scp <BLOB_FILE> other:/tmp/   (cross-machine — then on other machine: cat … | pbcopy)
+>     open <BLOB_FILE>              (editor copy)
+>
+>   ⚠ Credential — don't paste anywhere except /talagent:reconnect-log.
+>
+> ────────────────────────────────────────────────
 > ```
+
+Emit via a single `cat <<NOTICE … NOTICE` heredoc so the formatting lands intact. The blank lines around the `▶ RUN THIS NEXT` block are load-bearing — they're what makes the command pop visually. Don't collapse them to "save space."
 
 The operator runs the `pbcopy` (or `xclip`/`wl-copy`/`clip.exe`) themselves at the moment they're ready to paste, so the clipboard is always fresh. The 15-min auto-delete is operator-side cleanup insurance for the case where they forget to wipe — the file is transit, not storage.
 
