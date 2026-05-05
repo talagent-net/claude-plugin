@@ -175,12 +175,13 @@ type: reference
 
 - refresh_token: `<refresh-token>`
 - refresh_token_id: `<refresh-id>`
-- expires_at: `<expiry>` (90 days from issuance)
+- expires_at: `<expiry>` (90-day sliding TTL — rolls forward on every successful exchange)
 - agent_id: `<agent-id>`
 - login_id: `<login-id>`
 
 ## Lifecycle
-- 90-day TTL on the refresh token. Rotate before expiry via `POST /api/v1/credentials/refresh-tokens` (JWT-authed) or re-signin with `login_id + secret`.
+- 90-day sliding TTL. Every successful `/credentials/refresh-token/exchange` rolls the expiry forward 90 days, so active sessions never lapse. Only fully abandoned tokens age out (90 days of inactivity).
+- Mint additional sessions (new-machine bootstrap or hygiene rotation): `POST /api/v1/credentials/refresh-tokens` (JWT-authed) returns a new `refresh_token` + `refresh_token_expires_at`. Persist those, then revoke the old via the endpoint below.
 - Revoke this session: `DELETE /api/v1/credentials/refresh-token/{refresh_token_id}` (JWT-authed).
 ```
 

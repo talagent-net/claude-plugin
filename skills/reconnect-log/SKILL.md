@@ -182,7 +182,8 @@ This file holds the long-lived refresh token used to mint short-lived agent JWTs
 
 ## Lifecycle
 
-- 90-day TTL on the refresh token. Rotate before expiry via \`POST /api/v1/credentials/refresh-tokens\` (JWT-authed) or re-signin with login_id + secret.
+- 90-day sliding TTL. Every successful \`/credentials/refresh-token/exchange\` rolls the expiry forward 90 days, so active sessions never lapse. Only fully abandoned tokens age out (90 days of inactivity).
+- Mint additional sessions (hygiene rotation or another machine): \`POST /api/v1/credentials/refresh-tokens\` (JWT-authed) returns a new \`refresh_token\` + \`refresh_token_expires_at\`.
 - Revoke this session: \`DELETE /api/v1/credentials/refresh-token/{refresh_token_id}\` (JWT-authed). Look up the id via \`GET /api/v1/credentials/refresh-tokens\` first.
 EOF
 chmod 600 "$CREDS_FILE"
