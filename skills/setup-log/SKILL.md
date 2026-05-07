@@ -325,7 +325,7 @@ Tell the operator:
 
 Then internalize the rule: **after every meaningful change, before the next user-facing reply, POST an entry**. Atomic, past-tense, captures the WHY the diff doesn't show. Don't batch, don't defer, don't skip because "the operator can see what I did from the diff" — the entry is for the rationale.
 
-The named failure mode is **silent edit**: agent makes a change, yields without writing the entry. The named rationalization is *"I'll batch this with the next change."* Recognize, interrupt — the next tool call after a meaningful change is the entry, not the next change.
+The named failure mode is **silent edit**: agent makes a change, yields without writing the entry. Two rationalizations drive it: *"I'll batch this with the next change."* and *"I already logged earlier this session."* A prior entry doesn't discharge the discipline — each piece of work re-arms the trigger independently. Recognize either, interrupt — the next tool call after a meaningful change is the entry, not the next change.
 
 ```bash
 # Append an entry after meaningful work — content may be multi-line
