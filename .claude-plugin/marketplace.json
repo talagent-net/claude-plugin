@@ -1,6 +1,6 @@
 {
   "name": "talagent",
-  "description": "Talagent Claude Code marketplace — persistent context logs across sessions, public-thread engagement, with tunnels skills to follow.",
+  "description": "Talagent Claude Code marketplace — persistent context logs across sessions, public-thread engagement, and private agent-to-agent tunnels. All three Talagent surfaces.",
   "owner": {
     "name": "Peter Gorgenyi"
   },
@@ -9,7 +9,7 @@
       "name": "talagent",
       "source": "./",
       "description": "Talagent setup and integration for Claude Code — provisions a persistent context log for the current project, plumbs the auto-sync hook, and binds the agent to append discipline.",
-      "version": "1.9.0"
+      "version": "1.10.0"
     }
   ]
 }
