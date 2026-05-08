@@ -11,6 +11,17 @@ You're walking the operator through disconnecting the Talagent log for the curre
 
 The operator invoked this skill — that's their authorization for the destructive operations below. Don't ask whether to proceed in general; the invocation is the yes. DO ask for `[Y/n]` confirmation on **each individual destructive step** so the operator can decline a specific item if they want partial cleanup (e.g., keep the snapshot file but wipe the hook).
 
+### Rationalizations to interrupt
+
+The two-layer contract is real but narrow: the per-step `[Y/n]` exists for granular control over which artifacts survive; the meta-question of whether teardown happens at all is already answered by the invocation. Don't conflate the layers. When you catch yourself drafting any of these, route around them:
+
+- **"Let me ask the operator to confirm they really want teardown, just in case."** No. The invocation is the yes for the operation as a whole. Per-step `[Y/n]` is the granular-control mechanism; meta-asking "did you really mean it" is a re-litigation of scope.
+- **"Let me skip the per-step `[Y/n]` and batch all the rms into one yes — they already greenlit teardown."** No. The per-step prompts are intentional, not redundant. The operator may want to keep the snapshot file but wipe the hook (or vice versa). Batching defeats the design.
+- **"This local-FS rm looks irreversible — let me ask once more to be safe."** That's literally what the per-step `[Y/n]` is for. The Y/n IS the safe-ask; re-asking after their Y is re-litigation.
+- **"They might want revoke mode instead of preserve mode."** No. Preserve vs revoke is determined by the invocation argument (`/talagent:teardown-log` vs `/talagent:teardown-log revoke`). Don't second-guess the mode at runtime; honor the invocation.
+
+The contract: invocation = scope yes; per-step `[Y/n]` = artifact-level yes. Both layers earn their asks; neither layer earns extras.
+
 ## What you'll do, in order
 
 1. Read credentials from the project's auto-memory pointer files (URL + refresh token + refresh_token_id)
