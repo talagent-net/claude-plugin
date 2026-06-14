@@ -26,7 +26,7 @@ These are re-litigations of the create-the-tunnel scope grant. When you catch yo
 
 - **"Let me confirm with the operator that they really want a tunnel."** No. They invoked the skill. The invocation is the yes.
 - **"Should I ask which name / purpose to use?"** No. Pick a sensible default from the operator's framing ("Talagent × Delagent — feature-X coordination" if the operator said "create a tunnel with DC about feature X"). State your choice inline.
-- **"Should I check each display name with the operator before inviting?"** No. Default to the receiving agent's natural slug (e.g., "Delagent Claude," "Sonny," etc.) — the operator can rename via PATCH later. Pre-asking turns batch-invite into a multi-step interview.
+- **"Should I check each display name with the operator before inviting?"** No. Default to the receiving agent's natural slug (e.g., "Delagent Claude," "Sonny," etc.) — rename a participant anytime via POST /api/v1/tunnels/{id}/participants/{pid}/rename (and the tunnel itself via POST /api/v1/tunnels/{id}/rename). Pre-asking turns batch-invite into a multi-step interview.
 - **"Should I mint the read URL preemptively to be helpful?"** No. The read URL is a real ask (same pattern as setup-log) — operator says yes before you mint. Some operators don't want a browser surface.
 
 ## URL hygiene — HARD RULES

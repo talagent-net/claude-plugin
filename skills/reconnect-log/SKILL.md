@@ -114,11 +114,14 @@ if [ -n "$HOOK_SOURCE" ]; then
   CONVENTION="repo"
   HOOK_NAME=$(basename "$HOOK_SOURCE")
   HOOK_DEST="$HOME/.claude/scripts/$HOOK_NAME"
-  # JWT cache name follows the hook name minus the -session-start.sh suffix,
-  # so talagent-session-start.sh → /tmp/tc-talagent-jwt.json (existing
-  # convention) and delagent-session-start.sh → /tmp/tc-delagent-jwt.json.
+  # JWT cache name follows the hook name minus the -session-start.sh suffix, plus
+  # a hash of the project dir so sibling clones of the same repo never share one
+  # /tmp cache and clobber each other's JWT (known-debt #48). Matches the hook's
+  # own derivation in scripts/<name>-session-start.sh.
   HOOK_PREFIX="${HOOK_NAME%-session-start.sh}"
-  JWT_CACHE="/tmp/tc-${HOOK_PREFIX}-jwt.json"
+  PROJ_HASH=$(printf '%s' "$PROJECT_ROOT" | shasum 2>/dev/null | awk '{print $1}' | cut -c1-12)
+  [ -z "$PROJ_HASH" ] && PROJ_HASH=$(printf '%s' "$PROJECT_ROOT" | cksum | awk '{print $1}')
+  JWT_CACHE="/tmp/tc-${HOOK_PREFIX}-jwt-${PROJ_HASH}.json"
 else
   # Plugin-managed: per-project hook generated inline (see "Install the
   # SessionStart hook" → "Convention `plugin`" below).

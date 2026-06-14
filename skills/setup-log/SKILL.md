@@ -11,16 +11,17 @@ You're walking the operator through provisioning a Talagent persistent-context l
 
 The operator installed this plugin — that's their authorization for the setup. Don't ask whether to proceed; the install is the yes. Default to **proactive autonomy**: pick reasonable defaults, only ask the operator about the things only they can answer (email address + clicking the verification link), stream progress as you execute.
 
-### Rationalizations to interrupt
+**Don't re-litigate the install-granted scope.** The install is the yes for the whole setup chain; specific reasoning patterns quietly re-ask permission for steps already authorized. The only real asks are below ("What to ask the operator"). Interrupt these:
 
-These are re-litigations of an already-granted scope. When you catch yourself drafting any of these, route around them — the install is the yes, and the contract is "stream progress as you execute," not "ask before each step."
+<!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-proactive-setup parts=rationalizations -->
+<!-- generated from Core v1.0.0-alpha.0 — do not edit between these markers; run `npm run render` -->
 
-- **"Let me ask the operator about this, just in case."** No. Re-asking each step turns the autonomy contract into noise. If the step is in the procedure below, run it; surface results, not pre-permissions.
-- **"They said yes to setup but maybe not to writing *this specific file* / picking *this specific name* / running *this specific step*."** No. The invocation was for the whole chain. Pick the default specified in the procedure, name your choice inline, move on.
-- **"This step looks risky — let me confirm even though setup explicitly granted scope."** No, unless the action is genuinely in the super-critical bucket (production, brand/cost/values, operator-direct, irreversible shared state). Calling the signup chain, writing pointer files in `~/.claude/projects/...`, plumbing a hook script — none of those qualify.
-- **"The operator might prefer a different default than the one I'd pick."** No. Pick a reasonable default, state it inline ("Using `<project>-claude-code` as the agent name"), let the operator override if they want. Pre-asking turns "proactive autonomy" into "permission-gated autonomy."
-
-The two real asks in this skill (email address; pasted verification code) are surfaced explicitly in "What to ask the operator (only these)" below — those are the only questions you raise. Everything else is execute-and-stream.
+**Rationalizations to interrupt:**
+- "Let me ask the operator about this, just in case" → Re-asking each step turns the autonomy contract into noise. If the step is in the procedure, run it; surface results, not pre-permissions. The operator's setup ask covered the whole chain.
+- "They said yes to setup but maybe not to this specific file / name / step" → The operator's invocation was for the whole signup-and-plumb chain. Pick the default specified, name your choice inline ('Using <project>-<runtime> as the agent name'), move on.
+- "This step looks risky — let me confirm even though setup explicitly granted scope" → Unless the action is genuinely in the super-critical bucket (production, brand/cost/values, operator-direct, irreversible shared state). Walking the signup chain, writing to the runtime's state/auto-memory area, plumbing the boot-sync hook — none of those qualify.
+- "The operator might prefer a different default than the one I'd pick" → Pick a reasonable default, state it inline, let the operator override if they want. Pre-asking turns proactive autonomy into permission-gated autonomy.
+<!-- END GENERATED: core-behavior -->
 
 ## What you'll do, in order
 
@@ -326,17 +327,34 @@ The read URL is itself a credential (operator-shareable but still — once share
 
 ## Bind to BOTH disciplines (write AND read)
 
-Setup is not a closed loop. Two disciplines apply from this point forward:
+Setup is not a closed loop. Two disciplines apply from this point forward — the discipline statements below are Core-sourced (do not edit between the generated markers; run `npm run render`); the operator messaging and runnable recipes around them stay hand-authored.
 
-### Write discipline — append on meaningful work
+<!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-write-discipline level=3 -->
+<!-- generated from Core v1.0.0-alpha.0 — do not edit between these markers; run `npm run render` -->
 
-Tell the operator:
+### Write discipline
+
+After meaningful work — a decision made, a problem solved, a dead end ruled out,
+a surprising finding — append a log entry via `POST <participant_url>/entries`
+with `{ content }`. Atomic, past-tense, a complete thought.
+
+Write the moment the work lands, **before** the next user-facing reply. Do not
+defer to "end of session" or batch.
+
+Never write secrets, JWTs, or PII into entry content.
+
+**Why:** the diff captures *what* changed; only the log captures *why*.
+
+**Failure mode — silent edit:** yielding control without an entry, so the operator has to notice the gap and prompt — and that prompt means the rule already broke.
+
+**Rationalizations to interrupt:**
+- "I might do more on this and batch later" → a prior entry does not discharge the discipline for subsequent work; each piece re-arms the trigger independently.
+- "I already logged earlier this session" → logging is a per-change discipline, not a once-per-session ritual; the trigger re-arms the moment new work lands.
+<!-- END GENERATED: core-behavior -->
+
+**Tell the operator** (setup-completion message):
 
 > "From here on, I'll log meaningful work — code changes, decisions, problems solved — to the Talagent log automatically. Future sessions will auto-sync the log on boot, so context carries across `/clear`, restarts, and new conversations."
-
-Then internalize the rule: **after every meaningful change, before the next user-facing reply, POST an entry**. Atomic, past-tense, captures the WHY the diff doesn't show. Don't batch, don't defer, don't skip because "the operator can see what I did from the diff" — the entry is for the rationale.
-
-The named failure mode is **silent edit**: agent makes a change, yields without writing the entry. Two rationalizations drive it: *"I'll batch this with the next change."* and *"I already logged earlier this session."* A prior entry doesn't discharge the discipline — each piece of work re-arms the trigger independently. Recognize either, interrupt — the next tool call after a meaningful change is the entry, not the next change.
 
 ```bash
 # Append an entry after meaningful work — content may be multi-line
@@ -350,30 +368,29 @@ curl -s -X POST "$URL/entries" \
   -d "$ENTRY_BODY"
 ```
 
-### Read discipline — consult the log on questions about prior work
+<!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-read-cascade level=3 -->
+<!-- generated from Core v1.0.0-alpha.0 — do not edit between these markers; run `npm run render` -->
 
-The log isn't just a write surface; it's the source of truth for cross-session context. The whole reason it exists is that you, in a new session, can't remember the prior session — but the log can. **Use it.**
+### Read discipline
 
-When the operator asks ANY of these question shapes, the log is your first stop, not your last resort:
+When the operator asks about prior work — why / when / what-was-the-rationale /
+what-changed / status-of-X — or asks any possessive question ("my X" / "your X"),
+consult the log **before** answering. Walk the cascade and stop at the first hit:
 
-- *"Why did we [X]?"*
-- *"When did we [Y]?"*
-- *"What was the rationale for [Z]?"*
-- *"What did we change last session?"*
-- *"What's the status of [feature / decision / discussion]?"*
-- Any question about a prior decision, prior change, prior reasoning, prior context.
+1. The latest `/sync` payload (the boot hook writes the full /sync payload to a per-project cache file under /tmp; read that file first) — `summary` + recent entries.
+2. Full-text search via `?q=<keyword>`.
+3. History walkback via `?before_position=<N>`.
 
-**Walk the cascade — and start with the cache file the hook wrote on boot.**
+Only after all three return nothing should you answer "I don't see that in the
+log." Possessive questions cannot shortcut on a partial `recent` match — fire FTS
+regardless.
 
-The hook persists the full /sync response to a stable cache path (`/tmp/talagent-<project-name>-sync-cache.json`) on every session boot. This is your authoritative source for the recent layer of the log; your in-context boot preview may be truncated by Claude Code's envelope cap and should NOT be assumed to contain the full data.
+**Why:** the diff captures *what* changed; only the log captures *why*.
 
-1. **Read the sync cache file FIRST** — `Read /tmp/talagent-<project-name>-sync-cache.json` (or `cat` it via Bash). The JSON has `data.initial_context`, `data.summary`, `data.latest_entries[]` (the recent ~10 entries with full content), `data.agent_guidance`. If the answer is in `latest_entries`, surface it.
+**Failure mode — silent recall:** the log is right there and the cascade rule is known, but you answer from short-term inference; pulling eventually, after the operator prompts, is not the rule firing on time.
+<!-- END GENERATED: core-behavior -->
 
-2. **If not in the cache:** `GET <participant_url>?q=<keyword>` for full-text search across the entire log.
-
-3. **If FTS comes up empty:** `GET <participant_url>?before_position=<N>` to walk older history.
-
-4. **Only THEN, if the cascade returned nothing,** answer with "I don't see that in the log."
+**Claude Code specifics.** The boot hook persists the full `/sync` response to a per-project cache file under `/tmp` (its exact filename is a Binding/hook detail — see known-debt #48). Treat that file as authoritative for the recent layer: your in-context boot preview may be truncated by Claude Code's envelope cap, so `Read` it (or `cat` via Bash) as cascade step 1 before reaching for FTS. The JSON has `data.initial_context`, `data.summary`, `data.latest_entries[]` (the recent ~10 entries with full content), and `data.agent_guidance`.
 
 ```bash
 # Full-text search across the log
@@ -383,13 +400,7 @@ curl -s "$URL?q=<keyword>" -H "Authorization: Bearer $JWT" | jq '.data.entries[]
 curl -s "$URL?before_position=<N>" -H "Authorization: Bearer $JWT" | jq '.data.entries[]'
 ```
 
-**Critical anti-pattern to avoid:** answering "I don't have prior context" or "I don't have memory across sessions" without reading the sync cache file. The cache file is right there at a known path; it has the prior context. If you find yourself saying that, you skipped step 1 — go back and read the file.
-
-**Named failure mode: silent recall.** The agent has the log available, has the cascade rule available, but answers from short-term inference (the diff, the current state of the code, vague "I think we…" guesses) instead of consulting the log. The operator notices the gap and prompts. Same shape as silent edit: resource available, discipline doesn't fire, operator becomes the safety net.
-
-**The named rationalization that drives silent recall:** *"I can probably figure this out from the diff / current state."* Recognize and interrupt. The diff shows WHAT changed; the log captures WHY — that's the whole reason this log exists. If the operator is asking a why/when/what-was-the-rationale question, the diff is not enough by definition.
-
-**Trigger boundary:** BEFORE you answer the question, do the cascade. The pull is the next tool call, not something you defer or skip because you think you remember.
+**Critical anti-pattern:** answering "I don't have prior context" or "I don't have memory across sessions" without reading the cache file first. The cache is right there at a known path with the prior context. If you catch yourself saying that, you skipped cascade step 1 — go read the file.
 
 ## Done
 
