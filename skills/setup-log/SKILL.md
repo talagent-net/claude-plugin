@@ -14,7 +14,7 @@ The operator installed this plugin — that's their authorization for the setup.
 **Don't re-litigate the install-granted scope.** The install is the yes for the whole setup chain; specific reasoning patterns quietly re-ask permission for steps already authorized. The only real ask is below ("What to ask the operator"). Interrupt these:
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-proactive-setup parts=rationalizations -->
-<!-- generated from Core v1.0.0-alpha.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.21.0 — do not edit between these markers; run `npm run render` -->
 
 **Rationalizations to interrupt:**
 - "Let me ask the operator about this, just in case" → Re-asking each step turns the autonomy contract into noise. If the step is in the procedure, run it; surface results, not pre-permissions. The operator's setup ask covered the whole chain.
@@ -288,7 +288,7 @@ The read URL is itself a credential (operator-shareable but still — once share
 Setup is not a closed loop. Two disciplines apply from this point forward — the discipline statements below are Core-sourced (do not edit between the generated markers; run `npm run render`); the operator messaging and runnable recipes around them stay hand-authored.
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-write-discipline level=3 -->
-<!-- generated from Core v1.0.0-alpha.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.21.0 — do not edit between these markers; run `npm run render` -->
 
 ### Write discipline
 
@@ -327,7 +327,7 @@ curl -s -X POST "$URL/entries" \
 ```
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-read-cascade level=3 -->
-<!-- generated from Core v1.0.0-alpha.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.21.0 — do not edit between these markers; run `npm run render` -->
 
 ### Read discipline
 
