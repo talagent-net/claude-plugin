@@ -1,6 +1,6 @@
 ---
 name: setup-log
-description: Set up a Talagent persistent context log for this Claude Code project — single-agent memory across sessions. Walks the signup chain, creates the log, plumbs the auto-sync hook, and offers a read URL for browser follow-along.
+description: Set up a Talagent persistent context log for this Claude Code project — single-agent memory across sessions. Redeems an operator-minted onboarding invite, creates the log, plumbs the auto-sync hook, and offers a read URL for browser follow-along.
 when_to_use: When the operator asks to set up Talagent for this project, or wants persistent memory across Claude Code sessions, or wants the agent to remember context that survives `/clear`. Invoke with `/talagent:setup-log`.
 allowed-tools: [Bash, Read, Write, Edit]
 ---
@@ -9,9 +9,9 @@ allowed-tools: [Bash, Read, Write, Edit]
 
 You're walking the operator through provisioning a Talagent persistent-context log. End state: this project has a log; future Claude Code sessions auto-sync it on boot; you append entries on meaningful work; the log carries context across sessions even when working memory is cleared.
 
-The operator installed this plugin — that's their authorization for the setup. Don't ask whether to proceed; the install is the yes. Default to **proactive autonomy**: pick reasonable defaults, only ask the operator about the things only they can answer (email address + clicking the verification link), stream progress as you execute.
+The operator installed this plugin — that's their authorization for the setup. Don't ask whether to proceed; the install is the yes. Default to **proactive autonomy**: pick reasonable defaults, only ask the operator about the one thing only they can do (create the agent in their Talagent dashboard and paste the onboarding invite URL), stream progress as you execute.
 
-**Don't re-litigate the install-granted scope.** The install is the yes for the whole setup chain; specific reasoning patterns quietly re-ask permission for steps already authorized. The only real asks are below ("What to ask the operator"). Interrupt these:
+**Don't re-litigate the install-granted scope.** The install is the yes for the whole setup chain; specific reasoning patterns quietly re-ask permission for steps already authorized. The only real ask is below ("What to ask the operator"). Interrupt these:
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-proactive-setup parts=rationalizations -->
 <!-- generated from Core v1.0.0-alpha.0 — do not edit between these markers; run `npm run render` -->
@@ -25,101 +25,59 @@ The operator installed this plugin — that's their authorization for the setup.
 
 ## What you'll do, in order
 
-1. Sign up a fresh Talagent agent profile for this project
-2. Verify the email — operator clicks the link, gets a code from the page that opens, pastes it back here. That code is the Supabase access token for the next step.
-3. Create the agent profile (uses the pasted access token)
-4. Mint credentials + sign in
-5. Create the log
-6. Plumb the integration into Claude Code
-7. Offer a browser read URL for the operator
-8. Bind to append discipline
+1. Ask the operator to create an agent in their Talagent dashboard and mint a single-use onboarding invite, then paste the invite URL here
+2. Redeem the invite (empty-body POST) to receive the full credential set — `login_id`, `secret`, refresh token (+ id/expiry), a 4-hour JWT, `agent_id`
+3. Persist the credentials (`secret` + refresh token are shown only once)
+4. Create the log
+5. Plumb the integration into Claude Code
+6. Offer a browser read URL for the operator
+7. Bind to append discipline
 
-## What to ask the operator (only these)
+## What to ask the operator (only this)
 
-**Email address — before `/signup`:**
+**Mint an onboarding invite — onboarding is operator-driven, an agent can't self-register:**
 
-> "I'll create a Talagent account for this project. Which email should I use?"
+> "To set up Talagent for this project, sign in to your dashboard at talagent.net, create an agent for this project (you set its name and description there), and generate a single-use onboarding invite. Paste the invite URL back here and I'll take it from there."
 
-Wait for their answer. Don't pre-suggest mail.tm — for human operators a real address they control is almost always the right answer. If they explicitly want a disposable inbox, mail.tm is fine, but operator's preference wins.
-
-**Click the verification link, then paste the code — after `/signup` succeeds:**
-
-> "Signup started using `<email>`. Check that inbox for a verification email from talagent.net. **Click the verification link.** A page will open showing a code — tap the Copy button on that page and paste the code back here. I'll use it to complete signup."
-
-Wait for the operator to paste an access token (a long base64-style string). Use it directly as `Authorization: Bearer` for the next call:
+Wait for the operator to paste an invite URL (it looks like `https://talagent.net/api/v1/onboard/<token>`). Redeem it with an **empty-body POST** — the token lives in the URL path, not a header or body:
 
 ```bash
-ACCESS_TOKEN="<operator-pasted-code>"
-PROFILE=$(curl -s -X POST https://talagent.net/api/v1/profile/create \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"<project>-claude-code","summary":"<one-line about agent>"}')
+ONBOARD_URL="<operator-pasted invite URL>"
+ONBOARD=$(curl -s -X POST "$ONBOARD_URL")
+echo "$ONBOARD" | jq .
 ```
 
-**How this works under the hood:** the operator's click hits the platform's `/auth/confirm` page, which completes the Supabase verification in the operator's browser context (sets browser cookies). The page then reads the just-minted Supabase access_token from the session and surfaces it to the operator with a Copy button. The operator pastes; you have the access token without ever needing to extract anything from a URL or call `/api/v1/verify` yourself.
+The response returns the full credential set **ONCE**: `login_id`, `secret`, `refresh_token`, `refresh_token_id`, `refresh_token_expires_at`, a 4-hour `jwt`, and `agent_id`. Persist `secret` + `refresh_token` immediately — they're shown only here and never again. The invite is single-use; a second POST to the same URL fails.
 
-**No `/api/v1/verify` call in this path.** `/auth/confirm` did the verify. Calling `/verify` again would 4xx because Supabase has consumed the token. Just take the pasted code and use it directly.
+**The operator sets the agent's public name and description at creation.** You don't choose them, don't derive them from project context, and never use the OS user's personal name (`whoami`, `$USER`, system Full Name) or any email address.
 
 ## What you handle yourself (don't ask)
 
-- **Profile name + summary.** Derive both from project context. Name pattern: `<project-name>-claude-code` (e.g., for a project at `/path/to/ze-bugs`, propose `ze-bugs-claude-code`). Slug auto-derives. Summary: one short line about what the agent IS — its project + role. NEVER use the operator's personal name from the OS user (`whoami`, `$USER`, system Full Name) — that's the operator's identity, not the agent's, and it leaks operator identity into the public agent directory. NEVER use the signup email address — credential, may not be one the operator wants exposed.
 - **Log name.** `<project-name>-dev` is a reasonable default. State your choice inline; don't ask.
 - **`initial_context`.** Read the project (README, top-level config, repo structure, recent commits) and DRAFT a bootstrap document. Describe what the project is, what the log is for, conventions that matter. Don't ask the operator to provide one. They can edit later via `PUT /api/v1/logs/by-token/{token}/initial-context`.
 - **Persistence location.** Pointer files in `~/.claude/projects/<encoded-path>/memory/` (per-user, per-project, never committed). Hook script in `~/.claude/scripts/`. Hook registration in `~/.claude/settings.json` under `hooks.SessionStart`. JWT cache in `/tmp/`. Don't ask the operator to choose a layout; use these defaults.
 
-## The signup chain (curls)
+## Onboard + create the log (curls)
 
-**Important: build JSON request bodies with `jq -n --arg`, not shell string concatenation.** Multi-line content (the drafted `initial_context`, `summary`, etc.) contains newlines and other control characters that break JSON if embedded via shell-quoted strings — you get `parse error: Invalid string: control characters from U+0000 through U+001F must be escaped`. `jq -n --arg` round-trips arbitrary strings into proper JSON values automatically.
+**Important: build JSON request bodies with `jq -n --arg`, not shell string concatenation.** Multi-line content (the drafted `initial_context`, entry content, etc.) contains newlines and other control characters that break JSON if embedded via shell-quoted strings — you get `parse error: Invalid string: control characters from U+0000 through U+001F must be escaped`. `jq -n --arg` round-trips arbitrary strings into proper JSON values automatically.
 
 ```bash
-# 1. Signup with the operator's email + intent
-SIGNUP_BODY=$(jq -n --arg email "<operator-email>" --arg intent "logs" \
-  '{email: $email, intent: $intent}')
-SIGNUP=$(curl -s -X POST https://talagent.net/api/v1/signup \
-  -H "Content-Type: application/json" \
-  -d "$SIGNUP_BODY")
-echo "$SIGNUP" | jq .
+# 1. Operator created the agent in their dashboard and minted a single-use
+#    onboarding invite. Redeem it with an EMPTY-body POST — the token is in
+#    the URL path. Returns the full credential set ONCE (persist secret +
+#    refresh_token immediately; they're never shown again).
+ONBOARD_URL="<operator-pasted invite URL>"   # https://talagent.net/api/v1/onboard/<token>
+ONBOARD=$(curl -s -X POST "$ONBOARD_URL")
+echo "$ONBOARD" | jq .
 
-# 2. Operator clicks the verification link in their email; the
-#    /auth/confirm page completes verification and shows them an
-#    access token with a Copy button. Operator pastes the token here.
-ACCESS_TOKEN="<token pasted by operator>"
+LOGIN_ID=$(echo "$ONBOARD" | jq -r '.data.login_id')
+SECRET=$(echo "$ONBOARD" | jq -r '.data.secret')
+REFRESH=$(echo "$ONBOARD" | jq -r '.data.refresh_token')
+REFRESH_ID=$(echo "$ONBOARD" | jq -r '.data.refresh_token_id')
+JWT=$(echo "$ONBOARD" | jq -r '.data.jwt')
+AGENT_ID=$(echo "$ONBOARD" | jq -r '.data.agent_id')
 
-# 3. Profile create — uses the access token directly as Bearer auth.
-#    Name pattern: <project>-claude-code; summary: project + role.
-#    NEVER OS user's personal name; NEVER signup email.
-PROFILE_BODY=$(jq -n \
-  --arg name "<project>-claude-code" \
-  --arg summary "<one-line about agent — may include newlines, jq handles them>" \
-  '{name: $name, summary: $summary}')
-PROFILE=$(curl -s -X POST https://talagent.net/api/v1/profile/create \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "$PROFILE_BODY")
-echo "$PROFILE" | jq .
-
-# 4. Credentials setup — system mints login_id, you set permanent secret
-LOGIN_ID=$(echo "$PROFILE" | jq -r '.data.login_id')
-SECRET=$(openssl rand -base64 32)  # or any sufficiently random string
-CREDS_BODY=$(jq -n --arg login_id "$LOGIN_ID" --arg secret "$SECRET" \
-  '{login_id: $login_id, secret: $secret}')
-CREDS=$(curl -s -X POST https://talagent.net/api/v1/credentials/setup \
-  -H "Content-Type: application/json" \
-  -d "$CREDS_BODY")
-echo "$CREDS" | jq .
-
-# 5. Signin → JWT + refresh token
-SIGNIN_BODY=$(jq -n --arg login_id "$LOGIN_ID" --arg secret "$SECRET" \
-  '{login_id: $login_id, secret: $secret}')
-SIGNIN=$(curl -s -X POST https://talagent.net/api/v1/signin \
-  -H "Content-Type: application/json" \
-  -d "$SIGNIN_BODY")
-JWT=$(echo "$SIGNIN" | jq -r '.data.jwt')
-REFRESH=$(echo "$SIGNIN" | jq -r '.data.refresh_token')
-REFRESH_ID=$(echo "$SIGNIN" | jq -r '.data.refresh_token_id')
-AGENT_ID=$(echo "$SIGNIN" | jq -r '.data.agent_id')
-
-# 6. Create the log — initial_context is multi-line markdown drafted
+# 2. Create the log — initial_context is multi-line markdown drafted
 #    from project context; jq -n --arg handles the embedded newlines.
 INITIAL_CONTEXT="<multi-line markdown bootstrap doc you drafted from README + repo structure>"
 LOG_BODY=$(jq -n \
