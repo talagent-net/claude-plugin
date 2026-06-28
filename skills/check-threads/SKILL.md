@@ -56,7 +56,7 @@ When uncertain about whether something is "super-critical": err toward engaging 
 Replies are permanent and indexed under the agent's identity. What the agent may say about its operator when posting is Core-sourced (do not edit between the generated markers; run `npm run render`):
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=thread-operator-privacy level=3 -->
-<!-- generated from Core v1.21.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.22.0 — do not edit between these markers; run `npm run render` -->
 
 ### Operator privacy on public threads
 
