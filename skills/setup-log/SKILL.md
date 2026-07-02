@@ -14,7 +14,7 @@ The operator installed this plugin — that's their authorization for the setup.
 **Don't re-litigate the install-granted scope.** The install is the yes for the whole setup chain; specific reasoning patterns quietly re-ask permission for steps already authorized. The only real ask is below ("What to ask the operator"). Interrupt these:
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-proactive-setup parts=rationalizations -->
-<!-- generated from Core v1.22.1 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.23.0 — do not edit between these markers; run `npm run render` -->
 
 **Rationalizations to interrupt:**
 - "Let me ask the operator about this, just in case" → Re-asking each step turns the autonomy contract into noise. If the step is in the procedure, run it; surface results, not pre-permissions. The operator's setup ask covered the whole chain.
@@ -288,7 +288,7 @@ The read URL is itself a credential (operator-shareable but still — once share
 Setup is not a closed loop. Two disciplines apply from this point forward — the discipline statements below are Core-sourced (do not edit between the generated markers; run `npm run render`); the operator messaging and runnable recipes around them stay hand-authored.
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-write-discipline level=3 -->
-<!-- generated from Core v1.22.1 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.23.0 — do not edit between these markers; run `npm run render` -->
 
 ### Write discipline
 
@@ -327,25 +327,47 @@ curl -s -X POST "$URL/entries" \
 ```
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-read-cascade level=3 -->
-<!-- generated from Core v1.22.1 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.23.0 — do not edit between these markers; run `npm run render` -->
 
 ### Read discipline
 
 When the operator asks about prior work — why / when / what-was-the-rationale /
 what-changed / status-of-X — or asks any possessive question ("my X" / "your X"),
-consult the log **before** answering. Walk the cascade and stop at the first hit:
+consult the log **before** answering, and treat the log as the **primary source of
+truth**. Local project materials — the codebase, documents, design files, whatever
+the project happens to be — are legitimate *secondary* context: read them freely, but
+never *in place of* the log for these questions. The project files tell you what the
+project is now; only the log tells you why it got there. (For a coding agent, the
+common trap: the diff and git history show *what* changed — they are not a substitute
+for the log's *why*.)
+
+Walk the cascade and stop at the first hit:
 
 1. The latest `/sync` payload (the boot hook writes the full /sync payload to a per-project cache file under /tmp; read that file first) — `summary` + recent entries.
 2. Full-text search via `?q=<keyword>`.
 3. History walkback via `?before_position=<N>`.
 
-Only after all three return nothing should you answer "I don't see that in the
-log." Possessive questions cannot shortcut on a partial `recent` match — fire FTS
-regardless.
+Distinguish **"the log had nothing"** from **"I could not reach the log."** A step
+that *returns empty* is a real miss; a step that *errors* — an auth/expiry failure
+(an expired session surfaces as a distinct `jwt_expired` signal, not an empty
+result), a network error, a rate limit — is not. On an error, re-authenticate
+(exchange your refresh token for a fresh session — the same step your session boot
+performs) and retry the step before drawing any conclusion. Never treat an error as
+"not in the log," and never let it push you back to reconstructing from local files.
 
-**Why:** the diff captures *what* changed; only the log captures *why*.
+Only after all three steps *genuinely return nothing* should you answer "I don't see
+that in the log." Possessive questions cannot shortcut on a partial `recent` match —
+fire FTS regardless.
 
-**Failure mode — silent recall:** the log is right there and the cascade rule is known, but you answer from short-term inference; pulling eventually, after the operator prompts, is not the rule firing on time.
+**Why:** the diff captures *what* changed; only the log captures *why* — and the log
+is only authoritative if you actually reach it, so a stale session means re-auth and
+retry, not fall back.
+
+**Failure mode — silent recall:** the log is right there and the cascade rule is known, but you answer from short-term inference — or reconstruct the answer from local project files (the codebase, docs, designs) as if they were equivalent. Pulling eventually, after the operator prompts, is not the rule firing on time.
+
+**Rationalizations to interrupt:**
+- "The project files already answer this — I can read the codebase / docs / design and reconstruct it" → Local project materials are secondary, not a substitute. They record *what* the project is now; the log records *why* it got there, *when*, and *what was ruled out*. Consult them after the log, never instead of it. For a coding agent specifically: the diff and git history are not the log.
+- "The log call failed, so I'll answer from what I already have" → A failed call is 'I could not reach the log', not 'it is not in the log'. Re-authenticate and retry before answering — a stale session is a self-heal signal, never grounds to fall back to inference.
 <!-- END GENERATED: core-behavior -->
 
 **Claude Code specifics.** The boot hook persists the full `/sync` response to a per-project cache file under `/tmp` (its exact filename is a Binding/hook detail — see known-debt #48). Treat that file as authoritative for the recent layer: your in-context boot preview may be truncated by Claude Code's envelope cap, so `Read` it (or `cat` via Bash) as cascade step 1 before reaching for FTS. The JSON has `data.initial_context`, `data.summary`, `data.latest_entries[]` (the recent ~10 entries with full content), and `data.agent_guidance`.
