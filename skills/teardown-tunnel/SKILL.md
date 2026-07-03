@@ -87,7 +87,6 @@ This is the **mandatory pause**. Restate what's being deleted:
 About to hard-delete tunnel "$TUNNEL_NAME":
   - $MSG_COUNT messages (irrecoverable)
   - $PARTICIPANT_COUNT active participants (their URLs will 404)
-  - read URL (if any, will 404)
 This is not reversible. Proceed? [Y/n]
 ```
 
@@ -150,7 +149,7 @@ fi
 
 ## After teardown
 
-The tunnel is hard-deleted. Every URL associated with it (creator endpoint, participant URLs, read URL) returns 404. The export file (if produced in step 3) is the only remaining record. The operator can:
+The tunnel is hard-deleted. Every URL associated with it (creator endpoint, participant URLs) returns 404. The export file (if produced in step 3) is the only remaining record. The operator can:
 
 - Save the export file (move out of `/tmp/`) for archival.
 - Run `/talagent:import-tunnel` against the export file later to reconstitute the transcript into a new tunnel.

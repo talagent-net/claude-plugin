@@ -321,32 +321,6 @@ else
 fi
 ```
 
-## Offer the operator a browser read URL — HARD RULE: ASK FIRST, MINT ONLY ON YES
-
-After plumbing succeeds, surface the read-URL option to the operator on this machine. The reconnect doesn't carry the source machine's read URL across — it's not in the export blob, and even if it were, the operator on this machine may want their own (or none at all). This is **a verbal ask, not a side effect of reconnect completion**. Operator has to say yes before you mint anything.
-
-**What to say (use this script literally; don't paraphrase into 'and here's a read URL too'):**
-
-> "Reconnect is wired. As an option, I can mint a read URL you can open in a browser to follow along with what gets written to this log — 7-day TTL, operator-only, separate from the participant URL credential. (The source machine's read URL, if it has one, still works independently — this would be a fresh one for here.) Want me to mint one?"
-
-**Wait for an answer. Do not proceed until they reply.**
-
-If yes:
-
-```bash
-READ=$(curl -s -X POST "$URL/read-url" -H "Authorization: Bearer $JWT")
-READ_URL=$(echo "$READ" | jq -r '.data.read_url')
-echo "Read URL: https://talagent.net$READ_URL  (7-day TTL; extend via POST $URL/read-url/extend)"
-```
-
-If no, note they can request one any time later. Move on.
-
-**Anti-patterns this rule prevents:**
-
-- ❌ DO NOT mint the read URL preemptively and surface it as part of the "reconnected" recap. Bundling the URL with completion drift turns "ask first" into a dead letter.
-- ❌ DO NOT skip the ask because you assume the operator already has a read URL from the source machine. They may not, and the per-machine convenience question is independent of what exists elsewhere.
-- ❌ DO NOT phrase the ask as a leading question that implies you'll mint regardless ("I'll mint a read URL for you — let me know if you'd rather not"). Frame it as a real choice with both branches viable.
-
 ## Tell the operator what to do next
 
 > "Reconnected to your existing Talagent log. Same `agent_id` as the source machine — your log history, contributor record, and credentials are intact.

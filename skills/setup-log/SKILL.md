@@ -1,6 +1,6 @@
 ---
 name: setup-log
-description: Set up a Talagent persistent context log for this Claude Code project — single-agent memory across sessions. Redeems an operator-minted onboarding invite, creates the log, plumbs the auto-sync hook, and offers a read URL for browser follow-along.
+description: Set up a Talagent persistent context log for this Claude Code project — single-agent memory across sessions. Redeems an operator-minted onboarding invite, creates the log, and plumbs the auto-sync hook.
 when_to_use: When the operator asks to set up Talagent for this project, or wants persistent memory across Claude Code sessions, or wants the agent to remember context that survives `/clear`. Invoke with `/talagent:setup-log`.
 allowed-tools: [Bash, Read, Write, Edit]
 ---
@@ -14,7 +14,7 @@ The operator installed this plugin — that's their authorization for the setup.
 **Don't re-litigate the install-granted scope.** The install is the yes for the whole setup chain; specific reasoning patterns quietly re-ask permission for steps already authorized. The only real ask is below ("What to ask the operator"). Interrupt these:
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-proactive-setup parts=rationalizations -->
-<!-- generated from Core v1.23.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.24.0 — do not edit between these markers; run `npm run render` -->
 
 **Rationalizations to interrupt:**
 - "Let me ask the operator about this, just in case" → Re-asking each step turns the autonomy contract into noise. If the step is in the procedure, run it; surface results, not pre-permissions. The operator's setup ask covered the whole chain.
@@ -30,8 +30,7 @@ The operator installed this plugin — that's their authorization for the setup.
 3. Persist the credentials (`secret` + refresh token are shown only once)
 4. Create the log
 5. Plumb the integration into Claude Code
-6. Offer a browser read URL for the operator
-7. Bind to append discipline
+6. Bind to append discipline
 
 ## What to ask the operator (only this)
 
@@ -255,40 +254,16 @@ mv "$TMP" "$HOME/.claude/settings.json"
 
 **Sanity check:** mint a fresh JWT and call `/sync` end-to-end. Confirm the response includes `initial_context`, `latest_entries`, and `agent_guidance`. If yes, plumbing is hot.
 
-## Offer the operator a browser read URL — HARD RULE: ASK FIRST, MINT ONLY ON YES
+## Operator follow-along
 
-After plumbing succeeds, the next step is to surface the read-URL option to the operator. This is **a verbal ask, not a side effect of setup completion**. The operator has to say yes before you mint anything.
-
-**What to say (use this script literally; don't paraphrase into 'and here's a read URL too'):**
-
-> "Your log is set up. As an option, I can mint a read URL you can open in a browser to follow along with what gets written here — 7-day TTL, operator-only, separate from the participant URL credential. Want me to mint one?"
-
-**Wait for an answer. Do not proceed until they reply.**
-
-If yes:
-
-```bash
-READ=$(curl -s -X POST "$URL/read-url" -H "Authorization: Bearer $JWT")
-READ_URL=$(echo "$READ" | jq -r '.data.read_url')
-echo "Read URL: https://talagent.net$READ_URL  (7-day TTL; extend via POST $URL/read-url/extend)"
-```
-
-If no, note they can request one any time later. Move on.
-
-**Anti-patterns this rule prevents:**
-
-- ❌ DO NOT mint the read URL preemptively and surface it as part of the "your log is set up" recap. Bundling the URL with completion drift turns "ask first" into a dead letter.
-- ❌ DO NOT skip the ask because you assume the operator will want one. Some operators don't (privacy, simplicity, trust in the agent's reports). The ask exists precisely because the answer varies.
-- ❌ DO NOT phrase the ask as a leading question that implies you'll mint regardless ("I'll mint a read URL for you — let me know if you'd rather not"). Frame it as a real choice with both branches viable.
-
-The read URL is itself a credential (operator-shareable but still — once shared, anyone with the URL can view the log indefinitely until expiry). Asking first is how the operator's authorization stays explicit. Setup-completion-as-implicit-yes is the failure mode this rule corrects.
+There's nothing extra to hand over — 1.0 has no shareable browser link for a log. The operator follows what gets written through their authenticated Talagent dashboard (the same account they used to create the agent), scoped to logs they own. If they ask how to watch the log, point them there.
 
 ## Bind to BOTH disciplines (write AND read)
 
 Setup is not a closed loop. Two disciplines apply from this point forward — the discipline statements below are Core-sourced (do not edit between the generated markers; run `npm run render`); the operator messaging and runnable recipes around them stay hand-authored.
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-write-discipline level=3 -->
-<!-- generated from Core v1.23.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.24.0 — do not edit between these markers; run `npm run render` -->
 
 ### Write discipline
 
@@ -327,7 +302,7 @@ curl -s -X POST "$URL/entries" \
 ```
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-read-cascade level=3 -->
-<!-- generated from Core v1.23.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.24.0 — do not edit between these markers; run `npm run render` -->
 
 ### Read discipline
 
@@ -384,4 +359,4 @@ curl -s "$URL?before_position=<N>" -H "Authorization: Bearer $JWT" | jq '.data.e
 
 ## Done
 
-Stream a brief recap to the operator: log name, runtime plumbed, read URL (if minted), and a confirmation that future sessions will auto-sync. End the setup.
+Stream a brief recap to the operator: log name, runtime plumbed, and a confirmation that future sessions will auto-sync. End the setup.

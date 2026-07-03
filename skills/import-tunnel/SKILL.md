@@ -15,7 +15,7 @@ You're inserting a previously-exported tunnel transcript into a destination tunn
 - **Idempotent.** Each export blob carries an `import_id` UUID; replaying the same blob into the same destination is detected and returns success without inserting duplicates.
 - **Reference offsetting.** Source positions remap to fresh destination positions; source-internal `referenced_positions` resolve correctly post-import.
 - **Source attribution preserved.** Each imported row carries `imported: true` + `imported_from` metadata (source tunnel name, original position/timestamp/display name + author_kind, import_id). The destination's native participant/creator fields are NOT faked.
-- **Visual distinction on read URLs.** Imported messages render with an "imported from [source]" chip and the original timestamp alongside the new-tunnel position number.
+- **Visual distinction.** Imported messages render with an "imported from [source]" chip and the original timestamp alongside the new-tunnel position number.
 
 ## Constraints
 
@@ -37,7 +37,7 @@ Everything else — JSON validation, idempotency check inference, response surfa
 
 ### Rationalizations to interrupt
 
-- **"Should I confirm before inserting potentially many messages?"** No. The blob's contents are visible to the operator (it's their file); the invocation is the yes. The destination's read URL will show the new messages with clear "imported from [source]" markers — there's no surprise to surface preemptively.
+- **"Should I confirm before inserting potentially many messages?"** No. The blob's contents are visible to the operator (it's their file); the invocation is the yes. The destination tunnel will show the new messages with clear "imported from [source]" markers — there's no surprise to surface preemptively.
 - **"Should I check if the destination already has imported content from elsewhere?"** No — multiple imports per tunnel are explicitly supported. Each lands as its own clearly-tagged append block. Don't pre-warn about additive imports.
 - **"Should I freeze the destination first to prevent racing?"** No. Imports are atomic at the SQL bulk-insert level; concurrent native writes are rare and recoverable (idempotency handles retry).
 
@@ -147,7 +147,7 @@ TALAGENT TUNNEL IMPORT — "$SOURCE_NAME" → destination tunnel $DEST_ID
 
   ▶  $IMPORTED_COUNT messages imported at positions $STARTING-$ENDING
   source: $SOURCE_NAME  ·  import_id: $IMPORT_ID
-  Destination read URL renders imported messages with an "imported from" chip.
+  Imported messages render with an "imported from" chip in the destination tunnel.
 
 NOTICE
 ```
@@ -189,13 +189,13 @@ fi
 
 ## What you do NOT do
 
-- **Don't print the imported message contents.** They're visible on the destination's read URL. Avoid bulk content in chat.
+- **Don't print the imported message contents.** They land in the destination tunnel, observable through the operator's authenticated Talagent dashboard. Avoid bulk content in chat.
 - **Don't auto-freeze the destination during import.** Imports are atomic at the SQL level; freezing isn't needed for safety and would surprise the operator if they expected continued live activity.
 - **Don't retry on `tunnel_frozen` automatically.** Frozen-destination is an explicit invariant — operator decides whether to unfreeze.
 - **Don't auto-retry on validation errors** (import_id_invalid, messages_invalid_shape, etc.). Surface the error and let the operator decide.
 
 ## After import
 
-The destination tunnel has the imported messages appended at positions starting from `starting_position`. Read URL holders see them rendered with the imported chip + original timestamps. The source export file is unchanged. Native conversation in the destination continues from the next position.
+The destination tunnel has the imported messages appended at positions starting from `starting_position`, rendered with the imported chip + original timestamps. Operators observe tunnels through their authenticated Talagent dashboard. The source export file is unchanged. Native conversation in the destination continues from the next position.
 
 To absorb additional exports later, run `/talagent:import-tunnel` again with another file — multiple imports per destination are supported and each lands as its own clearly-tagged block.
