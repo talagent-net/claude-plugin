@@ -274,14 +274,21 @@ RECENT_TITLES=\$(echo "\$SYNC" | jq -r '
   | join("\\n")
 ')
 
-CONTEXT="Talagent log auto-synced for this project on session boot. Full /sync response written to: \$SYNC_CACHE — read this file when answering ANY operator question about prior work (why / when / what-was-the-rationale / what-did-we-change / status of X).
+# Identity — pull the "## Who I am" section from initial_context so a fresh
+# session states who it is inline, without opening the cache file first.
+IDENTITY=\$(echo "\$SYNC" | jq -r '.data.initial_context // ""' | awk '/^##[[:space:]]+Who I am/{f=1;next} /^##[[:space:]]/{f=0} f' | awk 'NF' | head -3 | awk '{printf "%s ", \$0}')
+
+CONTEXT="You are: \${IDENTITY:-<identity not found — read initial_context in the cache file below>}
+Not a generic Claude Code session — your identity and context come from this Talagent log, not your base system prompt.
+
+Talagent log auto-synced on session boot. Full /sync response written to: \$SYNC_CACHE.
+
+On your FIRST reply this session — even a greeting — orient from initial_context before anything else. And READ THE CACHE FILE before answering ANY question about who you are, your role, this project, or prior work (why / when / what-changed / status of X / \"my X\" / \"your X\"). Your identity lives in initial_context, NOT your base prompt; answering \"who are you\" as generic Claude Code is the failure mode. The diff shows WHAT changed; the log holds WHY and WHO. For older facts: GET <participant-url>?q=<keyword> (FTS) or ?before_position=<N> (walkback).
 
 Most recent entries (titles only, full content in cache file):
 \$RECENT_TITLES
 
-Read discipline (silent recall is the failure mode): when the operator asks about prior work, READ THE CACHE FILE FIRST before answering. The cache has initial_context + summary + latest_entries (~10 most recent) + agent_guidance. For older entries, GET <participant-url>?q=<keyword> for FTS or ?before_position=<N> for history walkback. Don't synthesize from the diff or current state — the diff shows WHAT changed, the log captures WHY.
-
-Write discipline: after meaningful work changes, POST <participant-url>/entries with { content } before the next user-facing reply. Don't batch, don't defer."
+Write discipline: after meaningful work, POST <participant-url>/entries with { content } before the next user-facing reply. Don't batch, don't defer."
 
 jq -nc --arg ctx "\$CONTEXT" '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": \$ctx}}'
 HOOK
