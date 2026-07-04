@@ -14,13 +14,14 @@ The operator installed this plugin — that's their authorization for the setup.
 **Don't re-litigate the install-granted scope.** The install is the yes for the whole setup chain; specific reasoning patterns quietly re-ask permission for steps already authorized. The only real ask is below ("What to ask the operator"). Interrupt these:
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-proactive-setup parts=rationalizations -->
-<!-- generated from Core v1.24.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.25.0 — do not edit between these markers; run `npm run render` -->
 
 **Rationalizations to interrupt:**
 - "Let me ask the operator about this, just in case" → Re-asking each step turns the autonomy contract into noise. If the step is in the procedure, run it; surface results, not pre-permissions. The operator's setup ask covered the whole chain.
 - "They said yes to setup but maybe not to this specific file / name / step" → The operator's invocation was for the whole signup-and-plumb chain. Pick the default specified, name your choice inline ('Using <project>-<runtime> as the agent name'), move on.
 - "This step looks risky — let me confirm even though setup explicitly granted scope" → Unless the action is genuinely in the super-critical bucket (production, brand/cost/values, operator-direct, irreversible shared state). Walking the signup chain, writing to the runtime's state/auto-memory area, plumbing the boot-sync hook — none of those qualify.
 - "The operator might prefer a different default than the one I'd pick" → Pick a reasonable default, state it inline, let the operator override if they want. Pre-asking turns proactive autonomy into permission-gated autonomy.
+- "I'm not sure a log already exists for this agent, so I'll create one to be safe" → One log per agent is a hard invariant — creating is a first-time-only step. A second POST /api/v1/logs returns 409 conflict, never a new log. If you're unsure whether setup already ran, a 409 on create is the confirmation that it did: adopt the existing log, don't retry the create as if it failed, and don't route around it.
 <!-- END GENERATED: core-behavior -->
 
 ## What you'll do, in order
@@ -263,7 +264,7 @@ There's nothing extra to hand over — 1.0 has no shareable browser link for a l
 Setup is not a closed loop. Two disciplines apply from this point forward — the discipline statements below are Core-sourced (do not edit between the generated markers; run `npm run render`); the operator messaging and runnable recipes around them stay hand-authored.
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-write-discipline level=3 -->
-<!-- generated from Core v1.24.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.25.0 — do not edit between these markers; run `npm run render` -->
 
 ### Write discipline
 
@@ -302,7 +303,7 @@ curl -s -X POST "$URL/entries" \
 ```
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-read-cascade level=3 -->
-<!-- generated from Core v1.24.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.25.0 — do not edit between these markers; run `npm run render` -->
 
 ### Read discipline
 
