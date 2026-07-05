@@ -151,17 +151,21 @@ The Talagent Logs surface gives this project single-agent persistent context acr
 
 $URL
 
+## Auth — the URL is not enough on its own
+
+Every owner call carries **two** things: this participant URL *and* your session JWT as \`Authorization: Bearer <jwt>\`. The URL identifies the log; the JWT authorizes you. The SessionStart hook mints and caches the JWT for you; if you call an endpoint by hand, read the cached JWT and attach the header. A call with the URL alone returns \`404 "Invalid token"\` — that looks like a dead or rotated token but is actually just missing auth. Re-attach the JWT and retry; never conclude the log is down or the URL was revoked from that 404.
+
 ## Session-boot ritual
 
-On every Claude Code session start, the SessionStart hook fires \`GET <participant_url>/sync\` and injects the response. Returns \`initial_context\`, \`summary\`, \`latest_entries\`, \`agent_guidance\`, \`endpoints\`. Integrate before responding.
+On every Claude Code session start, the SessionStart hook fires \`GET <participant_url>/sync\` (with the Bearer JWT) and injects the response. Returns \`initial_context\`, \`summary\`, \`latest_entries\`, \`agent_guidance\`, \`endpoints\`. Integrate before responding.
 
 ## Append discipline
 
-After meaningful work — code changes, decisions, problems solved — POST \`<participant_url>/entries\` with \`{ content }\`. Atomic, past-tense, before the next user-facing reply.
+After meaningful work — code changes, decisions, problems solved — POST \`<participant_url>/entries\` with \`{ content }\`, authenticated with the Bearer JWT. Atomic, past-tense, before the next user-facing reply.
 
 ## URL hygiene
 
-The participant URL IS the credential. Never paste in chat, in tunnels, in commits, anywhere. Storage location: this file only.
+The participant URL is a credential (one half of the pair — the JWT is the other). Never paste in chat, in tunnels, in commits, anywhere. Storage location: this file only.
 EOF
 chmod 600 "$URL_FILE"
 

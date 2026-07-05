@@ -14,7 +14,7 @@ The operator installed this plugin — that's their authorization for the setup.
 **Don't re-litigate the install-granted scope.** The install is the yes for the whole setup chain; specific reasoning patterns quietly re-ask permission for steps already authorized. The only real ask is below ("What to ask the operator"). Interrupt these:
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-proactive-setup,log-identity-persistence parts=rationalizations -->
-<!-- generated from Core v1.26.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.27.0 — do not edit between these markers; run `npm run render` -->
 
 **Rationalizations to interrupt:**
 - "Let me ask the operator about this, just in case" → Re-asking each step turns the autonomy contract into noise. If the step is in the procedure, run it; surface results, not pre-permissions. The operator's setup ask covered the whole chain.
@@ -127,14 +127,17 @@ The Talagent Logs surface gives this project single-agent persistent context acr
 
 <participant_url>
 
+## Auth — the URL is not enough on its own
+Every owner call carries **two** things: this participant URL *and* your session JWT as `Authorization: Bearer <jwt>`. The URL identifies the log; the JWT authorizes you. The SessionStart hook mints and caches the JWT for you; if you call an endpoint by hand, read the cached JWT and attach the header. A call with the URL alone returns `404 "Invalid token"` — that looks like a dead or rotated token but is actually just missing auth. Re-attach the JWT and retry; never conclude the log is down or the URL was revoked from that 404.
+
 ## Session-boot ritual
-On every Claude Code session start, the SessionStart hook fires `GET <participant-url>/sync` and injects the response. Returns `initial_context`, `summary`, `latest_entries`, `agent_guidance`, `endpoints`. Integrate before responding.
+On every Claude Code session start, the SessionStart hook fires `GET <participant-url>/sync` (with the Bearer JWT) and injects the response. Returns `initial_context`, `summary`, `latest_entries`, `agent_guidance`, `endpoints`. Integrate before responding.
 
 ## Append discipline
-After meaningful work — code changes, decisions, problems solved — POST `<participant-url>/entries` with `{ content }`. Atomic, past-tense, before the next user-facing reply.
+After meaningful work — code changes, decisions, problems solved — POST `<participant-url>/entries` with `{ content }`, authenticated with the Bearer JWT. Atomic, past-tense, before the next user-facing reply.
 
 ## URL hygiene
-The participant URL IS the credential. Never paste in chat, in tunnels, in commits, anywhere. Storage location: this file only.
+The participant URL is a credential (one half of the pair — the JWT is the other). Never paste in chat, in tunnels, in commits, anywhere. Storage location: this file only.
 ```
 
 2. **Credentials pointer file** at `$MEMORY_DIR/reference_talagent_credentials.md` (chmod 600):
@@ -294,13 +297,14 @@ There's nothing extra to hand over — 1.0 has no shareable browser link for a l
 Setup is not a closed loop. Two disciplines apply from this point forward — the discipline statements below are Core-sourced (do not edit between the generated markers; run `npm run render`); the operator messaging and runnable recipes around them stay hand-authored.
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-write-discipline level=3 -->
-<!-- generated from Core v1.26.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.27.0 — do not edit between these markers; run `npm run render` -->
 
 ### Write discipline
 
 After meaningful work — a decision made, a problem solved, a dead end ruled out,
 a surprising finding — append a log entry via `POST <participant_url>/entries`
-with `{ content }`. Atomic, past-tense, a complete thought.
+with `{ content }`, authenticated with your session JWT (`Authorization: Bearer
+<jwt>`), the same as every owner call. Atomic, past-tense, a complete thought.
 
 Write the moment the work lands, **before** the next user-facing reply. Do not
 defer to "end of session" or batch.
@@ -333,7 +337,7 @@ curl -s -X POST "$URL/entries" \
 ```
 
 <!-- BEGIN GENERATED: core-behavior harness=claude-code rules=log-read-cascade level=3 -->
-<!-- generated from Core v1.26.0 — do not edit between these markers; run `npm run render` -->
+<!-- generated from Core v1.27.0 — do not edit between these markers; run `npm run render` -->
 
 ### Read discipline
 
